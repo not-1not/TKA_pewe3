@@ -54,17 +54,17 @@ const StudentLogin = () => {
   const availableSubjects = Array.from(new Set(activeTokens.map(t => t.subject))).filter(Boolean) as string[];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] animate-fade-in">
-      <div className="text-center mb-8">
-        <div className="flex items-center justify-center mb-4 text-primary">
-          <BookOpen size={64} />
+    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 animate-fade-in">
+      <div className="text-center mb-6 sm:mb-8">
+        <div className="flex items-center justify-center mb-3 sm:mb-4 text-primary">
+          <BookOpen size={48} className="sm:w-16 sm:h-16" />
         </div>
-        <h1 className="text-4xl text-primary drop-shadow-sm">TKA SD Negeri 3 Purwosari</h1>
-        <p className="text-xl text-muted mt-2">Welcome students! Let's get started.</p>
+        <h1 className="text-2xl sm:text-3xl md:text-4xl text-primary drop-shadow-sm">TKA SD Negeri 3 Purwosari</h1>
+        <p className="text-base sm:text-lg md:text-xl text-muted mt-1 sm:mt-2">Welcome students!</p>
       </div>
 
-      <div className="card w-full max-w-md glass border-2 border-primary/20">
-        <h2 className="text-2xl text-center mb-6">Student Login</h2>
+      <div className="card w-full max-w-md glass border-2 border-primary/20 px-4 sm:px-6">
+        <h2 className="text-xl sm:text-2xl text-center mb-4 sm:mb-6">Student Login</h2>
 
         {error && (
           <div className="bg-danger/10 border-l-4 border-danger text-danger p-4 mb-6 rounded-r">
@@ -98,18 +98,22 @@ const StudentLogin = () => {
           </div>
 
           <div className="input-group">
-            <label className="input-label" htmlFor="subject">Pilih Mata Pelajaran</label>
-            <select
-              id="subject"
-              className="input-field font-bold text-primary"
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-            >
-              <option value="">-- Pilih Mapel --</option>
-              {availableSubjects.map(s => (
-                <option key={s} value={s}>{s}</option>
+            <label className="input-label text-center block">Pilih Mata Pelajaran</label>
+            <div className="flex gap-3 justify-center">
+              {['Matematika', 'Bahasa Indonesia'].map((subject) => (
+                <button
+                  key={subject}
+                  type="button"
+                  onClick={() => setSelectedSubject(subject)}
+                  className={`flex-1 py-4 px-4 rounded-xl font-bold text-base transition-all border-2 ${selectedSubject === subject
+                      ? 'bg-primary text-white border-primary shadow-[0_4px_0_theme(colors.primary.hover)] active:translate-y-[4px] active:shadow-none'
+                      : 'bg-surface text-text-main border-border hover:border-primary hover:text-primary'
+                    }`}
+                >
+                  {subject}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
           <div className="input-group">

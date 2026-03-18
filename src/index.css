@@ -1,5 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
-
+/* Load fonts with preconnect for better performance */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,10 +6,54 @@
 @layer base {
   body {
     @apply bg-background text-text-main font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent overscroll bounce on iOS */
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
+  /* Smooth scroll */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Better touch targets */
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* Custom scrollbar for webkit browsers */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-neutral-100 rounded;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 rounded hover:bg-neutral-400 transition-colors;
+  }
+
+  /* Focus styles for accessibility */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+
+  /* Remove default focus outline for mouse users */
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 }
 
 @layer components {
+
   /* Layout */
   .app-container {
     @apply min-h-screen flex flex-col;
@@ -20,33 +63,35 @@
     @apply flex-1 w-full max-w-[1200px] mx-auto p-6 md:p-8;
   }
 
-  /* Components */
+  /* Card component */
   .card {
     @apply bg-surface rounded-2xl shadow-md border border-border p-6 transition-all;
   }
 
+  /* Button base styles */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-base transition-all active:scale-[0.97] mb-1 select-none border-none cursor-pointer;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-base transition-all select-none border-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100;
   }
 
-  .btn:disabled {
-    @apply opacity-60 cursor-not-allowed scale-100;
+  /* Button with 3D press effect */
+  .btn-3d {
+    @apply relative shadow-[0_4px_0_currentColor] active:translate-y-[4px] active:shadow-none active:mb-[4px];
   }
 
-  .btn-primary {
-    @apply bg-primary text-white shadow-[0_4px_0_theme(colors.primary.hover)] active:translate-y-[4px] active:shadow-none active:mb-0;
+  .btn-3d-primary {
+    @apply btn btn-3d bg-primary text-white shadow-[0_4px_0_theme(colors.primary.hover)];
   }
 
-  .btn-secondary {
-    @apply bg-secondary text-white shadow-[0_4px_0_theme(colors.secondary.hover)] active:translate-y-[4px] active:shadow-none active:mb-0;
+  .btn-3d-secondary {
+    @apply btn btn-3d bg-secondary text-white shadow-[0_4px_0_theme(colors.secondary.hover)];
   }
 
-  .btn-danger {
-    @apply bg-danger text-white shadow-[0_4px_0_theme(colors.danger.hover)] active:translate-y-[4px] active:shadow-none active:mb-0;
+  .btn-3d-danger {
+    @apply btn btn-3d bg-danger text-white shadow-[0_4px_0_theme(colors.danger.hover)];
   }
 
   .btn-outline {
-    @apply bg-transparent text-text-main border-2 border-border active:translate-y-0 active:mb-1 hover:bg-background hover:border-text-muted;
+    @apply btn bg-transparent text-text-main border-2 border-border hover:bg-background hover:border-text-muted;
   }
 
   /* Input Fields */
@@ -59,7 +104,7 @@
   }
 
   .input-field {
-    @apply w-full px-4 py-3 border-2 border-border rounded-xl text-base font-sans transition-all outline-none focus:border-primary focus:ring-4 focus:ring-primary/20;
+    @apply w-full px-4 py-3 border-2 border-border rounded-xl text-base font-sans transition-colors outline-none focus:border-primary focus:ring-4 focus:ring-primary/20;
   }
 
   /* Animations */
@@ -73,6 +118,13 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

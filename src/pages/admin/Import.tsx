@@ -6,7 +6,7 @@ import { api, Student, Question, Statement } from '../../lib/db';
 const Import = () => {
   const questionInputRef = useRef<HTMLInputElement>(null);
   const studentInputRef = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = React.useState<{type: 'success'|'error'|'loading', message: string} | null>(null);
+  const [status, setStatus] = React.useState<{ type: 'success' | 'error' | 'loading', message: string } | null>(null);
 
   const downloadTemplate = (type: 'questions' | 'students') => {
     let headers = '';
@@ -16,8 +16,8 @@ const Import = () => {
     if (type === 'questions') {
       headers = 'subject,question,type,option_a,option_b,option_c,option_d,correct_answer,s1_text,s1_ans,s2_text,s2_ans,s3_text,s3_ans,image';
       rows = 'IPA,Apa ibu kota Indonesia?,pilihan_ganda,Jakarta,Bandung,Surabaya,Medan,A,,,,,,,https://placehold.co/600x400?text=Jakarta\n' +
-             'IPA,Pernyataan tentang mamalia,pilihan_ganda_kompleks,,,,, ,Bernapas dengan paru-paru,Benar,Memiliki daun telinga,Benar,Bertelur,Salah,\n' +
-             'BI,Kesesuaian tata surya,multiple_choice_multiple_answer,,,,, ,Bumi mengelilingi matahari,Sesuai,Matahari adalah planet,Tidak Sesuai,Pluto adalah planet kerdil,Sesuai,';
+        'IPA,Pernyataan tentang mamalia,pilihan_ganda_kompleks,,,,, ,Bernapas dengan paru-paru,Benar,Memiliki daun telinga,Benar,Bertelur,Salah,\n' +
+        'BI,Kesesuaian tata surya,multiple_choice_multiple_answer,,,,, ,Bumi mengelilingi matahari,Sesuai,Matahari adalah planet,Tidak Sesuai,Pluto adalah planet kerdil,Sesuai,';
       filename = 'template_soal.csv';
     } else {
       headers = 'username,password,name,school';
@@ -69,7 +69,7 @@ const Import = () => {
         console.error(err);
         setStatus({ type: 'error', message: 'Gagal mengimport file. Pastikan format sesuai template.' });
       }
-      
+
       if (e.target) e.target.value = '';
     };
     reader.readAsText(file);
@@ -93,13 +93,23 @@ const Import = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <input 
-          type="file" accept=".csv" ref={questionInputRef} className="hidden" 
-          onChange={(e) => handleFileUpload(e, 'questions')} 
+        <input
+          type="file"
+          accept=".csv"
+          ref={questionInputRef}
+          className="hidden"
+          title="Upload questions CSV file"
+          aria-label="Upload questions CSV file"
+          onChange={(e) => handleFileUpload(e, 'questions')}
         />
-        <input 
-          type="file" accept=".csv" ref={studentInputRef} className="hidden" 
-          onChange={(e) => handleFileUpload(e, 'students')} 
+        <input
+          type="file"
+          accept=".csv"
+          ref={studentInputRef}
+          className="hidden"
+          title="Upload students CSV file"
+          aria-label="Upload students CSV file"
+          onChange={(e) => handleFileUpload(e, 'students')}
         />
 
         <div className="card bg-surface p-6 md:p-8 rounded-2xl border border-border shadow-sm flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors group">
@@ -109,7 +119,7 @@ const Import = () => {
           <h2 className="text-xl font-bold mb-2">Import Questions</h2>
           <p className="text-text-muted mb-6 text-sm">Upload a CSV file to bulk add questions to your bank.</p>
           <button onClick={() => questionInputRef.current?.click()} className="btn btn-primary w-full shadow-lg">Select CSV</button>
-          
+
           <button onClick={() => downloadTemplate('questions')} className="mt-4 flex items-center justify-center gap-2 text-xs text-primary hover:underline cursor-pointer font-bold">
             <Download size={14} /> Template (.csv)
           </button>
@@ -134,12 +144,12 @@ const Import = () => {
           </div>
           <h2 className="text-xl font-bold mb-2 text-danger">Reset & Sync</h2>
           <p className="text-text-muted mb-6 text-sm">Bersihkan cache dan muat ulang bank soal dari file default.</p>
-          <button 
+          <button
             onClick={() => {
-              if(confirm("PERINGATAN: Semua data (HASIL UJIAN, SISWA, SOAL) di browser ini akan dihapus dan direset ke data awal. Lanjutkan?")) {
+              if (confirm("PERINGATAN: Semua data (HASIL UJIAN, SISWA, SOAL) di browser ini akan dihapus dan direset ke data awal. Lanjutkan?")) {
                 api.resetDatabase();
               }
-            }} 
+            }}
             className="btn bg-danger text-white w-full shadow-lg hover:bg-danger/90"
           >
             Reset Database
@@ -149,7 +159,7 @@ const Import = () => {
 
       <div className="mt-12 p-6 bg-background rounded-2xl border border-dashed border-border">
         <h3 className="font-bold text-text-main mb-4 flex items-center gap-2">
-          <AlertCircle size={18} className="text-warning"/> Petunjuk Import CSV
+          <AlertCircle size={18} className="text-warning" /> Petunjuk Import CSV
         </h3>
         <div className="grid md:grid-cols-2 gap-8 text-sm">
           <div>
