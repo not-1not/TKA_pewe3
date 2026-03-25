@@ -1,3 +1,9 @@
+# Environment variables - JANGAN DI-COMMIT
+.env
+.env.local
+.env.*.local
+.env.production.local
+
 # Logs
 logs
 *.log
@@ -7,18 +13,24 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Node modules
+node_modules/
+
+# Build files
+dist/
+dist-ssr/
+out/
+.next/
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.swp
+*.swo
