@@ -185,79 +185,102 @@ export const api = {
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
       if (supabaseUrl && supabaseKey) {
-        import('@supabase/supabase-js').then(async ({ createClient }) => {
-           try {
-              const supabase = createClient(supabaseUrl, supabaseKey);
-              const { data, error } = await supabase.from('questions').select('*');
-              
-              if (!error && data && data.length > 0) {
-                 const mappedQuestions = data.map((q: any) => {
-                    const options = q.options || [];
-                    const answerIndex = options.indexOf(q.answer);
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          const { data, error } = await supabase.from('questions').select('*');
+          
+          if (!error && data && data.length > 0) {
+             const mappedQuestions = data.map((q: any) => {
+                let qTypeRaw = (q.type || '').toUpperCase();
+                let qType: QuestionType = 'pilihan_ganda';
+                
+                if (qTypeRaw === 'MC' || qTypeRaw === 'PILIHAN_GANDA') qType = 'pilihan_ganda';
+                else if (qTypeRaw === 'MCMA' || qTypeRaw === 'PILIHAN_GANDA_KOMPLEKS') qType = 'pilihan_ganda_kompleks';
+                else if (qTypeRaw === 'TF' || qTypeRaw === 'MULTIPLE_CHOICE_MULTIPLE_ANSWER') qType = 'multiple_choice_multiple_answer';
 
-                    return {
-                      id: q.id || 'Q-' + Math.random().toString(36).substring(2, 9),
-                      subject: q.subject || 'Umum',
-                      question: q.question,
-                      type: 'pilihan_ganda',
-                      option_a: options[0] || '',
-                      option_b: options[1] || '',
-                      option_c: options[2] || '',
-                      option_d: options[3] || '',
-                      correct_answer: (['A', 'B', 'C', 'D'][answerIndex] || 'A') as any
-                    } as Question;
+                const res: Question = {
+                  id: q.id || 'Q-' + Math.random().toString(36).substring(2, 9),
+                  subject: q.subject || 'Umum',
+                  question: q.question,
+                  type: qType,
+                  image: q.image || ''
+                };
+
+                let optionsArray: any[] = [];
+                try {
+                    optionsArray = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
+                } catch(e) {}
+
+                if (qType === 'pilihan_ganda') {
+                  res.option_a = optionsArray[0] || '';
+                  res.option_b = optionsArray[1] || '';
+                  res.option_c = optionsArray[2] || '';
+                  res.option_d = optionsArray[3] || '';
+                  res.correct_answer = (q.answer || 'A') as any;
+                } else if (qType === 'pilihan_ganda_kompleks') {
+                  const correctAnswers = (q.answer || '').toUpperCase().split(',').map((s: string) => s.trim());
+                  res.statements = optionsArray.map((opt: any, idx: number) => {
+                      const letter = String.fromCharCode(65 + idx);
+                      return { text: typeof opt === 'string' ? opt : (opt.statement || ''), isCorrect: correctAnswers.includes(letter) };
                   });
-                  
-                  api.setQuestions(mappedQuestions);
-                  console.log('Database initialized from Supabase');
-                  supabaseSuccess = true;
-                  localStorage.setItem('db_initialized', 'true');
-           }
-           } catch(e) {
-             console.warn("Supabase fetch failed", e);
-           }
-        });
+                } else if (qType === 'multiple_choice_multiple_answer') {
+                  res.statements = optionsArray.map((opt: any) => {
+                      return { text: opt.statement || typeof opt === 'string' ? opt : '', correctAnswer: opt.answer || 'Sesuai' };
+                  });
+                }
+                return res;
+              });
+              
+              api.setQuestions(mappedQuestions);
+              console.log('Database initialized from Supabase');
+              supabaseSuccess = true;
+          } else if (error) {
+              console.warn("Supabase fetch failed", error);
+          }
+        } catch(e) {
+          console.warn("Supabase initialization failed", e);
+        }
       }
 
-      // If Supabase is being loaded asynchronously, we might still want to load local fallbacks just in case
-      // For simplicity, we also run the fallback loader if forcing or if supabase hasn't succeeded yet
+      // Always load static JSONs for students/results/tokens since they aren't fully migrated to Supabase yet
       const [questionsJson, students, results, tokens] = await Promise.all([
-        fetch('/database/questions.json').then(res => res.json()).catch(() => []),
+        supabaseSuccess ? Promise.resolve([]) : fetch('/database/questions.json').then(res => res.json()).catch(() => []),
         fetch('/database/students.json').then(res => res.json()).catch(() => []),
         fetch('/database/results.json').then(res => res.json()).catch(() => []),
         fetch('/database/tokens.json').then(res => res.json()).catch(() => []),
       ]);
 
-      let allQuestions = Array.isArray(questionsJson) ? [...questionsJson] : [];
+      if (!supabaseSuccess) {
+        let allQuestions = Array.isArray(questionsJson) ? [...questionsJson] : [];
 
-      // Try to fetch BI CSV if it exists
-      try {
-        const biCsv = await fetch('/database/questions_bahasa_indonesia.csv').then(res => res.text());
-        if (biCsv && biCsv.length > 50 && !biCsv.includes('<!DOCTYPE html>')) {
-           const parsed = api.parseQuestionCSV(biCsv);
-           allQuestions = [...allQuestions, ...parsed];
-        }
-      } catch (e) {}
+        try {
+          const biCsv = await fetch('/database/questions_bahasa_indonesia.csv').then(res => res.text());
+          if (biCsv && biCsv.length > 50 && !biCsv.includes('<!DOCTYPE html>')) {
+             const parsed = api.parseQuestionCSV(biCsv);
+             allQuestions = [...allQuestions, ...parsed];
+          }
+        } catch (e) {}
 
-      // Try to fetch MTK CSV if it exists
-      try {
-        const mtkCsv = await fetch('/database/questions_matematika.csv').then(res => res.text());
-        if (mtkCsv && mtkCsv.length > 50 && !mtkCsv.includes('<!DOCTYPE html>')) {
-           const parsed = api.parseQuestionCSV(mtkCsv);
-           allQuestions = [...allQuestions, ...parsed];
-        }
-      } catch (e) {}
+        try {
+          const mtkCsv = await fetch('/database/questions_matematika.csv').then(res => res.text());
+          if (mtkCsv && mtkCsv.length > 50 && !mtkCsv.includes('<!DOCTYPE html>')) {
+             const parsed = api.parseQuestionCSV(mtkCsv);
+             allQuestions = [...allQuestions, ...parsed];
+          }
+        } catch (e) {}
 
-      // Deduplicate by question text (simple way)
-      uniqueQuestions = Array.from(new Map(allQuestions.map(q => [q.question, q])).values());
+        // Deduplicate
+        uniqueQuestions = Array.from(new Map(allQuestions.map(q => [q.question, q])).values());
+        if (uniqueQuestions.length) api.setQuestions(uniqueQuestions);
+        console.log('Database initialized from public files');
+      }
 
-      if (uniqueQuestions.length && !supabaseSuccess) api.setQuestions(uniqueQuestions);
       if (students && students.length) api.setStudents(students);
       if (results && results.length) setStorage('results', results);
       if (tokens && tokens.length) api.setTokens(tokens);
 
       localStorage.setItem('db_initialized', 'true');
-      if(!supabaseSuccess) console.log('Database initialized from public files');
     } catch (err) {
       console.error('Failed to initialize database:', err);
     }
