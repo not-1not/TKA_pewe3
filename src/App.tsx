@@ -49,7 +49,7 @@ const router = createBrowserRouter([
       { path: "/exam", element: <ProtectedStudentRoute><Exam /></ProtectedStudentRoute> },
       { path: "/review", element: <ProtectedStudentRoute><Review /></ProtectedStudentRoute> },
       { path: "/result", element: <ProtectedStudentRoute><Result /></ProtectedStudentRoute> },
-      
+
       { path: "/admin", element: <Navigate to="/admin/login" replace /> },
       { path: "/admin/login", element: <AdminLogin /> },
       { path: "/admin/dashboard", element: <ProtectedAdminRoute><AdminDashboard /></ProtectedAdminRoute> },
@@ -61,7 +61,7 @@ const router = createBrowserRouter([
       { path: "/admin/results", element: <ProtectedAdminRoute><AdminResults /></ProtectedAdminRoute> },
     ]
   }
-], { basename: import.meta.env.BASE_URL });
+]);
 
 
 function App() {
