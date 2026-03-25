@@ -13,7 +13,9 @@ const StudentLogin = () => {
   const { loginStudent } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -22,36 +24,40 @@ const StudentLogin = () => {
       return;
     }
 
-    const students = api.getStudents();
-    const student = students.find(s => s.username.toLowerCase() === username.trim().toLowerCase());
+    setIsLoading(true);
+    try {
+        const students = await api.getStudents();
+        const student = students.find(s => s.username.toLowerCase() === username.trim().toLowerCase());
 
-    if (!student) {
-      setError('Student account not found. Please contact your teacher.');
-      return;
+        if (!student) {
+          setError('Student account not found. Please contact your teacher.');
+          return;
+        }
+
+        if (student.password && student.password !== password) {
+          setError('Incorrect password.');
+          return;
+        }
+
+        const examToken = await api.getTokenByStr(tokenStr);
+        if (!examToken) {
+          setError('Invalid or inactive exam token. Please ask your teacher.');
+          return;
+        }
+
+        if (examToken.subject !== selectedSubject) {
+          setError(`This token is for ${examToken.subject}, but you selected ${selectedSubject}.`);
+          return;
+        }
+
+        loginStudent(student, examToken.id);
+        navigate('/instructions');
+    } catch (err) {
+        setError('System error during login. Please try again.');
+    } finally {
+        setIsLoading(false);
     }
-
-    if (student.password && student.password !== password) {
-      setError('Incorrect password.');
-      return;
-    }
-
-    const examToken = api.getTokenByStr(tokenStr);
-    if (!examToken) {
-      setError('Invalid or inactive exam token. Please ask your teacher.');
-      return;
-    }
-
-    if (examToken.subject !== selectedSubject) {
-      setError(`This token is for ${examToken.subject}, but you selected ${selectedSubject}.`);
-      return;
-    }
-
-    loginStudent(student, examToken.id);
-    navigate('/instructions');
   };
-
-  const activeTokens = api.getTokens().filter(t => t.active);
-  const availableSubjects = Array.from(new Set(activeTokens.map(t => t.subject))).filter(Boolean) as string[];
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 animate-fade-in">

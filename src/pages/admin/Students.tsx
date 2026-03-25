@@ -17,9 +17,22 @@ const Students = () => {
   
   const [showHistory, setShowHistory] = useState(false);
   const [historyData, setHistoryData] = useState<{student: Student, results: any[]} | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchStudents = async () => {
+    setIsLoading(true);
+    try {
+      const data = await api.getStudents();
+      setStudents(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setStudents(api.getStudents());
+    fetchStudents();
   }, []);
 
   const filteredStudents = students.filter(s => 
@@ -28,7 +41,7 @@ const Students = () => {
     s.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.username || !formData.name || !formData.school) {
       return alert("Username, Name, and School are required");
@@ -39,14 +52,20 @@ const Students = () => {
       return alert("This username is already taken. Please choose another one.");
     }
     
-    if (editingId) {
-      api.updateStudent({ ...formData, id: editingId } as Student);
-    } else {
-      api.addStudent({ ...formData, id: 'STU-' + Date.now().toString(36) } as Student);
+    setIsLoading(true);
+    try {
+        if (editingId) {
+            await api.updateStudent({ ...formData, id: editingId } as Student);
+        } else {
+            await api.addStudent({ ...formData, id: 'STU-' + Date.now().toString(36) } as Student);
+        }
+        await fetchStudents();
+        onCloseForm();
+    } catch (err) {
+        alert("Failed to save student");
+    } finally {
+        setIsLoading(false);
     }
-    
-    setStudents(api.getStudents());
-    onCloseForm();
   };
 
   const handleEdit = (s: Student) => {
@@ -55,21 +74,35 @@ const Students = () => {
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Delete this student account? They will no longer be able to log in.")) {
-      api.deleteStudent(id);
-      setStudents(api.getStudents());
-      setSelectedIds(prev => prev.filter(i => i !== id));
+      setIsLoading(true);
+      try {
+        await api.deleteStudent(id);
+        await fetchStudents();
+        setSelectedIds(prev => prev.filter(i => i !== id));
+      } catch (err) {
+        alert("Failed to delete student");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleBatchDelete = () => {
+  const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
     if (confirm(`Delete ${selectedIds.length} selected students?`)) {
-      const remaining = students.filter(s => !selectedIds.includes(s.id));
-      api.setStudents(remaining);
-      setStudents(remaining);
-      setSelectedIds([]);
+      setIsLoading(true);
+      try {
+          const remaining = students.filter(s => !selectedIds.includes(s.id));
+          await api.setStudents(remaining);
+          await fetchStudents();
+          setSelectedIds([]);
+      } catch (err) {
+          alert("Failed to delete students");
+      } finally {
+          setIsLoading(false);
+      }
     }
   };
 
@@ -151,36 +184,44 @@ const Students = () => {
           
           <form onSubmit={handleSave} className="grid md:grid-cols-2 gap-x-6 gap-y-4">
             <div className="input-group">
-              <label className="input-label">Username (NISN / ID)</label>
+              <label className="input-label" htmlFor="stu-username">Username (NISN / ID)</label>
               <input 
+                id="stu-username"
                 type="text" className="input-field" 
                 placeholder="e.g. 123456789"
                 value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})}
+                title="Username or NISN"
               />
             </div>
             
             <div className="input-group">
-              <label className="input-label">Password {editingId && <span className="text-xs text-text-muted font-normal underline">(Optional)</span>}</label>
+              <label className="input-label" htmlFor="stu-password">Password {editingId && <span className="text-xs text-text-muted font-normal underline">(Optional)</span>}</label>
               <input 
+                id="stu-password"
                 type="text" className="input-field" 
                 placeholder="Password"
                 value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
+                title="Password"
               />
             </div>
             
             <div className="input-group">
-              <label className="input-label">Full Name</label>
+              <label className="input-label" htmlFor="stu-name">Full Name</label>
               <input 
+                id="stu-name"
                 type="text" className="input-field" placeholder="e.g. Budi Santoso"
                 value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+                title="Full Name"
               />
             </div>
             
             <div className="input-group">
-              <label className="input-label">School Name</label>
+              <label className="input-label" htmlFor="stu-school">School Name</label>
               <input 
+                id="stu-school"
                 type="text" className="input-field" placeholder="e.g. SDN 1 Jakarta"
                 value={formData.school} onChange={e => setFormData({...formData, school: e.target.value})}
+                title="School Name"
               />
             </div>
 
@@ -194,6 +235,7 @@ const Students = () => {
       <div className="card bg-surface p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold">Students List ({filteredStudents.length})</h2>
+          {isLoading && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-secondary"></div>}
         </div>
         
         <div className="grid gap-4">
@@ -226,8 +268,8 @@ const Students = () => {
                 
                 <div className="flex gap-2 w-full md:w-auto justify-end">
                   <button 
-                    onClick={() => {
-                      const res = api.getResultsByStudent(s.id);
+                    onClick={async () => {
+                      const res = await api.getResultsByStudent(s.id);
                       setHistoryData({ student: s, results: res });
                       setShowHistory(true);
                     }} 

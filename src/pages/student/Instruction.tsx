@@ -10,51 +10,70 @@ const Instruction = () => {
   const navigate = useNavigate();
   const [tokenInfo, setTokenInfo] = useState<ExamToken | null>(null);
   
+  const [isLoading, setIsLoading] = useState(false);
+
   useEffect(() => {
-    if (auth.tokenId) {
-      const tokens = api.getTokens();
-      const token = tokens.find(t => t.id === auth.tokenId);
-      if (token) setTokenInfo(token);
-    }
+    const fetchToken = async () => {
+      if (auth.tokenId) {
+        setIsLoading(true);
+        try {
+            const tokens = await api.getTokens();
+            const token = tokens.find(t => t.id === auth.tokenId);
+            if (token) setTokenInfo(token);
+        } catch (err) {
+            console.error("Token load error:", err);
+        } finally {
+            setIsLoading(false);
+        }
+      }
+    };
+    fetchToken();
   }, [auth.tokenId]);
 
-  const startExam = () => {
-    if (!tokenInfo || !auth.student) return;
+  const startExam = async () => {
+    if (!tokenInfo || !auth.student || isLoading) return;
     
-    const existingState = api.getExamState(auth.student.id);
-    if (existingState && existingState.studentId === auth.student.id && existingState.tokenId === tokenInfo.id && !existingState.submitted) {
-      navigate('/exam');
-      return;
+    setIsLoading(true);
+    try {
+        const existingState = await api.getExamState(auth.student.id);
+        if (existingState && existingState.studentId === auth.student.id && existingState.tokenId === tokenInfo.id && !existingState.submitted) {
+          navigate('/exam');
+          return;
+        }
+        
+        const allQs = await api.getQuestions();
+        const filteredBySubject = tokenInfo.subject && tokenInfo.subject !== 'All' 
+           ? allQs.filter(q => q.subject === tokenInfo.subject)
+           : allQs;
+        
+        const shuffled = shuffleArray([...filteredBySubject]).slice(0, tokenInfo.questionCount);
+        const questionOrder = shuffled.map(q => q.id);
+        const optionOrder: Record<string, ('A'|'B'|'C'|'D')[]> = {};
+        shuffled.forEach(q => {
+          optionOrder[q.id] = shuffleArray(['A', 'B', 'C', 'D']);
+        });
+        
+        await api.setExamState({
+          studentId: auth.student.id,
+          tokenId: tokenInfo.id,
+          endTime: null, 
+          startTime: null,
+          answers: {},
+          doubt: {},
+          questionOrder,
+          optionOrder,
+          submitted: false
+        });
+        
+        navigate('/exam');
+    } catch (err) {
+        alert("Failed to start exam. Please try again.");
+    } finally {
+        setIsLoading(false);
     }
-    
-    const allQs = api.getQuestions();
-    const filteredBySubject = tokenInfo.subject && tokenInfo.subject !== 'All' 
-       ? allQs.filter(q => q.subject === tokenInfo.subject)
-       : allQs;
-    
-    const shuffled = shuffleArray([...filteredBySubject]).slice(0, tokenInfo.questionCount);
-    const questionOrder = shuffled.map(q => q.id);
-    const optionOrder: Record<string, ('A'|'B'|'C'|'D')[]> = {};
-    shuffled.forEach(q => {
-      optionOrder[q.id] = shuffleArray(['A', 'B', 'C', 'D']);
-    });
-    
-    api.setExamState({
-      studentId: auth.student.id,
-      tokenId: tokenInfo.id,
-      endTime: null, 
-      startTime: null,
-      answers: {},
-      doubt: {},
-      questionOrder,
-      optionOrder,
-      submitted: false
-    });
-    
-    navigate('/exam');
   };
 
-  if (!tokenInfo) return <div className="p-8 text-center text-xl font-bold animate-pulse text-primary mt-12">Loading Exam Information...</div>;
+  if (!tokenInfo || (isLoading && !auth.student)) return <div className="p-8 text-center text-xl font-bold animate-pulse text-primary mt-12">Loading Exam Information...</div>;
 
   return (
     <div className="flex flex-col items-center p-4 min-h-[80vh] justify-center animate-fade-in py-12">

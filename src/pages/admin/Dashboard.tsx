@@ -121,31 +121,46 @@ const Dashboard = () => {
 
   const [recentResults, setRecentResults] = React.useState<Result[]>([]);
 
+  const [isLoading, setIsLoading] = React.useState(false);
+
   React.useEffect(() => {
-    const questions = api.getQuestions();
-    const students = api.getStudents();
-    const tokens = api.getTokens();
-    const results = api.getResults();
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+          const [questions, students, tokens, results] = await Promise.all([
+            api.getQuestions(),
+            api.getStudents(),
+            api.getTokens(),
+            api.getResults()
+          ]);
 
-    const sumScore = results.reduce((acc, r) => acc + r.score, 0);
-    const avgScore = results.length ? Math.round(sumScore / results.length) : 0;
+          const sumScore = results.reduce((acc, r) => acc + r.score, 0);
+          const avgScore = results.length ? Math.round(sumScore / results.length) : 0;
 
-    const qBreakdown = {
-      pilihan_ganda: questions.filter(q => q.type === 'pilihan_ganda').length,
-      pilihan_ganda_kompleks: questions.filter(q => q.type === 'pilihan_ganda_kompleks').length,
-      mcma: questions.filter(q => q.type === 'multiple_choice_multiple_answer').length
+          const qBreakdown = {
+            pilihan_ganda: questions.filter(q => q.type === 'pilihan_ganda').length,
+            pilihan_ganda_kompleks: questions.filter(q => q.type === 'pilihan_ganda_kompleks').length,
+            mcma: questions.filter(q => q.type === 'multiple_choice_multiple_answer').length
+          };
+
+          setStats({
+            totalQuestions: questions.length,
+            totalStudents: students.length,
+            totalTokens: tokens.length,
+            averageScore: avgScore,
+            breakdown: qBreakdown
+          });
+
+          const latest = [...results].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5);
+          setRecentResults(latest);
+      } catch (err) {
+          console.error("Dashboard data load error:", err);
+      } finally {
+          setIsLoading(false);
+      }
     };
-
-    setStats({
-      totalQuestions: questions.length,
-      totalStudents: students.length,
-      totalTokens: tokens.length,
-      averageScore: avgScore,
-      breakdown: qBreakdown
-    });
-
-    const latest = [...results].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5);
-    setRecentResults(latest);
+    
+    fetchData();
   }, []);
 
   return (

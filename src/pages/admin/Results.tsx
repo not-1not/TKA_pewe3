@@ -5,12 +5,25 @@ import { Download, Search, Edit3, Trash2, X, Save } from 'lucide-react';
 
 const AdminResults = () => {
   const [results, setResults] = useState<Result[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingResult, setEditingResult] = useState<Result | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  const fetchResults = async () => {
+    setIsLoading(true);
+    try {
+      const data = await api.getResults();
+      setResults(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setResults(api.getResults());
+    fetchResults();
   }, []);
 
   const handleExportCSV = () => {
@@ -47,20 +60,34 @@ const AdminResults = () => {
     setShowEditModal(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this result?')) {
-      api.deleteResult(id);
-      setResults(api.getResults());
+      setIsLoading(true);
+      try {
+          await api.deleteResult(id);
+          await fetchResults();
+      } catch (err) {
+          alert("Failed to delete result");
+      } finally {
+          setIsLoading(false);
+      }
     }
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingResult) {
-      api.updateResult(editingResult);
-      setResults(api.getResults());
-      setShowEditModal(false);
-      setEditingResult(null);
+      setIsLoading(true);
+      try {
+          await api.updateResult(editingResult);
+          await fetchResults();
+          setShowEditModal(false);
+          setEditingResult(null);
+      } catch (err) {
+          alert("Failed to update result");
+      } finally {
+          setIsLoading(false);
+      }
     }
   };
 
@@ -96,7 +123,8 @@ const AdminResults = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="text-text-muted font-bold text-xs sm:text-sm whitespace-nowrap">
+          <div className="text-text-muted font-bold text-xs sm:text-sm whitespace-nowrap flex items-center gap-3">
+            {isLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>}
             {filteredResults.length} records
           </div>
         </div>

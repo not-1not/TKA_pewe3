@@ -12,26 +12,34 @@ const Result = () => {
   const [result, setResult] = useState<ResultType | null>(null);
 
   useEffect(() => {
-    const resultId = location.state?.resultId;
-    if (!resultId && !auth.student?.id) { 
-      navigate('/login');
-      return;
-    }
-
-    if (resultId) {
-      const found = api.getResults().find(r => r.id === resultId);
-      if (found) setResult(found);
-      else { 
+    const fetchResult = async () => {
+      const resultId = location.state?.resultId;
+      if (!resultId && !auth.student?.id) { 
         navigate('/login');
+        return;
       }
-    } else {
-      const thisStudent = api.getResultsByStudent(auth.student?.id || '');
-      if (thisStudent.length > 0) {
-        setResult(thisStudent[thisStudent.length - 1]);
-      } else {
-        navigate('/login'); 
+
+      try {
+          if (resultId) {
+            const results = await api.getResults();
+            const found = results.find(r => r.id === resultId);
+            if (found) setResult(found);
+            else navigate('/login');
+          } else {
+            const thisStudent = await api.getResultsByStudent(auth.student?.id || '');
+            if (thisStudent.length > 0) {
+              setResult(thisStudent[thisStudent.length - 1]);
+            } else {
+              navigate('/login'); 
+            }
+          }
+      } catch (err) {
+          console.error("Result load error:", err);
+          navigate('/login');
       }
-    }
+    };
+    
+    fetchResult();
   }, [location, auth.student, navigate]);
 
   if (!result) return <div className="p-8 text-center animate-pulse font-bold text-xl text-primary mt-12">Loading Results...</div>;

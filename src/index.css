@@ -115,6 +115,11 @@
   .glass {
     @apply bg-white/70 backdrop-blur-md border border-white/50;
   }
+
+  /* Progress Bar with CSS Variable */
+  .monitor-progress-bar {
+    width: var(--progress-pct, 0%);
+  }
 }
 
 @keyframes fadeIn {

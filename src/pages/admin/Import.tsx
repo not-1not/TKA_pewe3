@@ -38,31 +38,31 @@ const Import = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'questions' | 'students') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'questions' | 'students') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const text = event.target?.result as string;
       setStatus({ type: 'loading', message: 'Memproses file...' });
 
       try {
         if (type === 'students') {
           const students = api.parseStudentCSV(text);
-          const current = api.getStudents();
+          const current = await api.getStudents();
           const all = [...current, ...students];
           // Deduplicate by username
           const unique = Array.from(new Map(all.map(s => [s.username.toLowerCase(), s])).values());
-          api.setStudents(unique);
+          await api.setStudents(unique);
           setStatus({ type: 'success', message: `Berhasil mengimport ${students.length} siswa (Duplikat username diabaikan).` });
         } else {
           const questions = api.parseQuestionCSV(text);
-          const current = api.getQuestions();
+          const current = await api.getQuestions();
           const all = [...current, ...questions];
           // Deduplicate by question text
           const unique = Array.from(new Map(all.map(q => [q.question, q])).values());
-          api.setQuestions(unique);
+          await api.setQuestions(unique);
           setStatus({ type: 'success', message: `Berhasil mengimport ${questions.length} soal (Duplikat otomatis diabaikan).` });
         }
       } catch (err) {

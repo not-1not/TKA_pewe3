@@ -14,23 +14,37 @@ const Review = () => {
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadReview = async () => {
     if (!auth.student) {
       navigate('/login');
       return;
     }
-    const state = api.getExamState(auth.student.id);
-    if (!state || state.submitted) {
-      navigate('/login');
-      return;
-    }
-
-    setExamState(state);
     
-    const allQs = api.getQuestions();
-    const orderedQs = state.questionOrder.map(id => allQs.find(q => q.id === id)).filter(Boolean) as Question[];
-    setQuestions(orderedQs);
-  }, [auth.student, navigate]);
+    setIsLoading(true);
+    try {
+        const state = await api.getExamState(auth.student.id);
+        if (!state || state.submitted) {
+          navigate('/login');
+          return;
+        }
+
+        setExamState(state);
+        
+        const allQs = await api.getQuestions();
+        const orderedQs = state.questionOrder.map(id => allQs.find(q => q.id === id)).filter(Boolean) as Question[];
+        setQuestions(orderedQs);
+    } catch (err) {
+        console.error("Review load error:", err);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReview();
+  }, [auth.student]);
 
   useEffect(() => {
     if (!examState?.endTime) return;
@@ -48,31 +62,44 @@ const Review = () => {
     return () => clearInterval(timerId);
   }, [examState, isSubmitting]);
 
-  const submitExam = () => {
+  const submitExam = async () => {
     if (!examState || !auth.student || isSubmitting) return;
     setIsSubmitting(true);
     
-    const { correct, wrong, score } = calculateScore(questions, examState.answers);
-    
-    const result: Result = {
-      id: 'RES-' + Math.random().toString(36).substring(2, 9),
-      studentId: auth.student.id,
-      studentName: auth.student.name,
-      school: auth.student.school,
-      correct,
-      wrong,
-      score,
-      timestamp: new Date().toISOString()
-    };
-    
-    api.addResult(result);
-    api.updateExamState(auth.student.id, { submitted: true });
-    
-    // Pass resultID securely
-    navigate('/result', { state: { resultId: result.id }, replace: true });
+    try {
+        const { correct, wrong, score } = calculateScore(questions, examState.answers);
+        
+        const result: Result = {
+          id: 'RES-' + Math.random().toString(36).substring(2, 9),
+          studentId: auth.student.id,
+          studentName: auth.student.name,
+          school: auth.student.school,
+          correct,
+          wrong,
+          score,
+          timestamp: new Date().toISOString()
+        };
+        
+        await api.addResult(result);
+        await api.updateExamState(auth.student.id, { submitted: true });
+        
+        // Pass resultID securely
+        navigate('/result', { state: { resultId: result.id }, replace: true });
+    } catch (err) {
+        alert("Failed to submit exam. Please check your connection and try again.");
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
-  if (!examState) return null;
+  if (!examState || (isLoading && questions.length === 0)) {
+    return (
+       <div className="flex flex-col items-center justify-center min-h-screen bg-background gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-primary"></div>
+          <p className="text-xl font-bold text-primary">Preparing Review...</p>
+       </div>
+    );
+  }
 
   const answeredCount = Object.keys(examState.answers).filter(k => examState.answers[k]).length;
   const unansweredCount = questions.length - answeredCount;

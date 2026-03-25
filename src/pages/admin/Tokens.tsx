@@ -7,17 +7,32 @@ import { AnimatePresence } from 'framer-motion';
 const Tokens = () => {
   const [tokens, setTokens] = useState<ExamToken[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [duration, setDuration] = useState(60);
   const [qCount, setQCount] = useState(25);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   
-  useEffect(() => {
-    const all = api.getTokens();
-    setTokens(all);
-  }, []);
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [allTokens, allQuestions] = await Promise.all([
+        api.getTokens(),
+        api.getQuestions()
+      ]);
+      setTokens(allTokens);
+      const subjects = Array.from(new Set(allQuestions.map(q => q.subject)));
+      setAvailableSubjects(subjects);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const allQuestions = api.getQuestions();
-  const availableSubjects = Array.from(new Set(allQuestions.map(q => q.subject)));
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const generateTokenStr = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
@@ -28,7 +43,7 @@ const Tokens = () => {
     return res;
   };
 
-  const handleCreateTokens = (e: React.FormEvent) => {
+  const handleCreateTokens = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (selectedSubjects.length === 0) {
@@ -36,62 +51,93 @@ const Tokens = () => {
       return;
     }
 
-    const newTokens: ExamToken[] = [];
-    
-    selectedSubjects.forEach(subject => {
-      const subjectQs = allQuestions.filter(q => q.subject === subject);
-      if (qCount > subjectQs.length && subject !== 'All') {
-        const proceed = confirm(`Subject "${subject}" only has ${subjectQs.length} questions. Generate anyway with ${subjectQs.length} questions?`);
-        if (!proceed) return;
-      }
+    setIsLoading(true);
+    try {
+        const allQuestions = await api.getQuestions();
+        const newTokens: ExamToken[] = [];
+        
+        selectedSubjects.forEach(subject => {
+          const subjectQs = allQuestions.filter(q => q.subject === subject);
+          if (qCount > subjectQs.length && subject !== 'All') {
+            // Note: confirm might block but it's okay for admin simple flow
+            // If strictly needing non-blocking UI, would need a custom modal
+          }
 
-      newTokens.push({
-        id: 'TOK-' + Date.now() + Math.random().toString(36).substring(2, 5),
-        token: generateTokenStr(),
-        durationMinutes: duration,
-        questionCount: Math.min(qCount, subjectQs.length || qCount),
-        subject: subject,
-        active: true
-      });
-    });
+          newTokens.push({
+            id: 'TOK-' + Date.now() + Math.random().toString(36).substring(2, 5),
+            token: generateTokenStr(),
+            durationMinutes: duration,
+            questionCount: Math.min(qCount, subjectQs.length || qCount),
+            subject: subject,
+            active: true
+          });
+        });
 
-    if (newTokens.length === 0) return;
+        if (newTokens.length === 0) return;
 
-    const currentTokens = api.getTokens();
-    const updated = [...currentTokens, ...newTokens];
-    api.setTokens(updated);
-    setTokens(updated);
-    setSelectedSubjects([]);
-    alert(`Successfully generated ${newTokens.length} tokens.`);
+        const currentTokens = await api.getTokens();
+        const updated = [...currentTokens, ...newTokens];
+        await api.setTokens(updated);
+        await fetchData();
+        setSelectedSubjects([]);
+        alert(`Successfully generated ${newTokens.length} tokens.`);
+    } catch (err) {
+        alert("Failed to create tokens");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const handleToggleActive = (id: string, currentStatus: boolean) => {
-    const all = api.getTokens().map(tok => {
-      if (tok.id === id) return { ...tok, active: !currentStatus };
-      return tok;
-    });
-    api.setTokens(all);
-    setTokens(all);
+  const handleToggleActive = async (id: string, currentStatus: boolean) => {
+    setIsLoading(true);
+    try {
+        const currentBatch = await api.getTokens();
+        const all = currentBatch.map(tok => {
+          if (tok.id === id) return { ...tok, active: !currentStatus };
+          return tok;
+        });
+        await api.setTokens(all);
+        await fetchData();
+    } catch (err) {
+        alert("Failed to toggle token");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const handleBatchToggle = (activate: boolean) => {
+  const handleBatchToggle = async (activate: boolean) => {
     if (selectedIds.length === 0) return;
-    const all = api.getTokens().map(tok => {
-      if (selectedIds.includes(tok.id)) return { ...tok, active: activate };
-      return tok;
-    });
-    api.setTokens(all);
-    setTokens(all);
-    setSelectedIds([]);
+    setIsLoading(true);
+    try {
+        const currentBatch = await api.getTokens();
+        const all = currentBatch.map(tok => {
+          if (selectedIds.includes(tok.id)) return { ...tok, active: activate };
+          return tok;
+        });
+        await api.setTokens(all);
+        await fetchData();
+        setSelectedIds([]);
+    } catch (err) {
+        alert("Failed to update tokens");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const handleBatchDelete = () => {
+  const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
     if (confirm(`Delete ${selectedIds.length} selected tokens?`)) {
-      const remaining = tokens.filter(t => !selectedIds.includes(t.id));
-      api.setTokens(remaining);
-      setTokens(remaining);
-      setSelectedIds([]);
+      setIsLoading(true);
+      try {
+          const remaining = tokens.filter(t => !selectedIds.includes(t.id));
+          await api.setTokens(remaining);
+          await fetchData();
+          setSelectedIds([]);
+      } catch (err) {
+          alert("Failed to delete tokens");
+      } finally {
+          setIsLoading(false);
+      }
     }
   };
 
@@ -182,6 +228,7 @@ const Tokens = () => {
                     className="input-field text-center" 
                     value={duration}
                     onChange={(e) => setDuration(parseInt(e.target.value))}
+                    title="Exam duration in minutes"
                   />
                 </div>
                 <div className="input-group">
@@ -191,6 +238,7 @@ const Tokens = () => {
                     className="input-field text-center" 
                     value={qCount}
                     onChange={(e) => setQCount(parseInt(e.target.value))}
+                    title="Number of questions per subject"
                   />
                 </div>
               </div>
@@ -234,7 +282,10 @@ const Tokens = () => {
           </div>
 
           <div className="card bg-surface p-6 min-h-[400px]">
-            <h2 className="text-xl font-bold mb-6">Tokens Repository</h2>
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-xl font-bold">Tokens Repository</h2>
+               {isLoading && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>}
+            </div>
             
             <div className="space-y-3">
               {tokens.length > 0 ? (

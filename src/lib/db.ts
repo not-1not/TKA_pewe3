@@ -1,5 +1,10 @@
 // src/lib/db.ts
-// Mock Database Implementation using LocalStorage
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export type Student = {
   id: string;
@@ -71,228 +76,249 @@ export type ExamState = {
   submitted: boolean;
 };
 
+// --- Mappers ---
+const mapQuestionFromDb = (q: any): Question => {
+  let qTypeRaw = (q.type || '').toUpperCase();
+  let qType: QuestionType = 'pilihan_ganda';
+  
+  if (qTypeRaw === 'MC' || qTypeRaw === 'PILIHAN_GANDA') qType = 'pilihan_ganda';
+  else if (qTypeRaw === 'MCMA' || qTypeRaw === 'PILIHAN_GANDA_KOMPLEKS') qType = 'pilihan_ganda_kompleks';
+  else if (qTypeRaw === 'TF' || qTypeRaw === 'MULTIPLE_CHOICE_MULTIPLE_ANSWER') qType = 'multiple_choice_multiple_answer';
 
-// Generic helpers for LocalStorage
-const getStorage = <T>(key: string, defaultValue: T): T => {
-  const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : defaultValue;
-};
+  const res: Question = {
+    id: q.id,
+    subject: q.subject || 'Umum',
+    question: q.question,
+    type: qType,
+    image: q.image || ''
+  };
 
-const setStorage = <T>(key: string, value: T): void => {
-  localStorage.setItem(key, JSON.stringify(value));
+  const optionsArray = q.options || [];
+
+  if (qType === 'pilihan_ganda') {
+    res.option_a = optionsArray[0] || '';
+    res.option_b = optionsArray[1] || '';
+    res.option_c = optionsArray[2] || '';
+    res.option_d = optionsArray[3] || '';
+    res.correct_answer = (q.answer || 'A') as any;
+  } else if (qType === 'pilihan_ganda_kompleks') {
+    const correctAnswers = (q.answer || '').toUpperCase().split(',').map((s: string) => s.trim());
+    res.statements = optionsArray.map((opt: any, idx: number) => {
+        const letter = String.fromCharCode(65 + idx);
+        return { text: typeof opt === 'string' ? opt : (opt.statement || ''), isCorrect: correctAnswers.includes(letter) };
+    });
+  } else if (qType === 'multiple_choice_multiple_answer') {
+    res.statements = optionsArray.map((opt: any) => {
+        return { text: opt.statement || (typeof opt === 'string' ? opt : ''), correctAnswer: opt.answer || 'Sesuai' };
+    });
+  }
+  return res;
 };
 
 export const api = {
   // --- Students ---
-  getStudents: () => getStorage<Student[]>('students', []),
-  addStudent: (student: Student) => {
-    const students = api.getStudents();
-    setStorage('students', [...students, student]);
+  getStudents: async () => {
+    const { data, error } = await supabase.from('students').select('*');
+    if (error) throw error;
+    return data as Student[];
   },
-  updateStudent: (student: Student) => {
-    const students = api.getStudents();
-    setStorage('students', students.map(existing => existing.id === student.id ? student : existing));
+  addStudent: async (student: Student) => {
+    const { error } = await supabase.from('students').insert([student]);
+    if (error) throw error;
   },
-  deleteStudent: (id: string) => {
-    const students = api.getStudents();
-    setStorage('students', students.filter(s => s.id !== id));
+  updateStudent: async (student: Student) => {
+    const { error } = await supabase.from('students').update(student).eq('id', student.id);
+    if (error) throw error;
   },
-  setStudents: (ss: Student[]) => setStorage('students', ss),
+  deleteStudent: async (id: string) => {
+    const { error } = await supabase.from('students').delete().eq('id', id);
+    if (error) throw error;
+  },
+  setStudents: async (ss: Student[]) => {
+    const { error } = await supabase.from('students').upsert(ss);
+    if (error) throw error;
+  },
   
   // --- Tokens ---
-  getTokens: () => getStorage<ExamToken[]>('tokens', []),
-  addToken: (token: ExamToken) => {
-    const tokens = api.getTokens();
-    setStorage('tokens', [...tokens, token]);
+  getTokens: async () => {
+    const { data, error } = await supabase.from('tokens').select('*');
+    if (error) throw error;
+    return (data || []).map(t => ({
+        ...t,
+        durationMinutes: t.durationMinutes,
+        questionCount: t.questionCount
+    })) as ExamToken[];
   },
-  setTokens: (ts: ExamToken[]) => setStorage('tokens', ts),
-  getTokenByStr: (tokenStr: string) => {
-    return api.getTokens().find(t => t.token.toUpperCase() === tokenStr.toUpperCase() && t.active);
+  addToken: async (token: ExamToken) => {
+    const { error } = await supabase.from('tokens').insert([token]);
+    if (error) throw error;
+  },
+  setTokens: async (ts: ExamToken[]) => {
+    const { error } = await supabase.from('tokens').upsert(ts);
+    if (error) throw error;
+  },
+  getTokenByStr: async (tokenStr: string) => {
+    const { data, error } = await supabase
+      .from('tokens')
+      .select('*')
+      .ilike('token', tokenStr)
+      .eq('active', true)
+      .single();
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
+    return data as ExamToken | null;
   },
 
   // --- Questions ---
-  getQuestions: () => getStorage<Question[]>('questions', []),
-  addQuestion: (q: Question) => {
-    const questions = api.getQuestions();
-    setStorage('questions', [...questions, q]);
+  getQuestions: async () => {
+    const { data, error } = await supabase.from('questions').select('*');
+    if (error) throw error;
+    return (data || []).map(mapQuestionFromDb);
   },
-  updateQuestion: (q: Question) => {
-    const questions = api.getQuestions();
-    setStorage('questions', questions.map(existing => existing.id === q.id ? q : existing));
+  addQuestion: async (q: Question) => {
+    // Basic mapping for insertion
+    const payload: any = {
+        id: q.id,
+        subject: q.subject,
+        question: q.question,
+        type: q.type === 'pilihan_ganda' ? 'MC' : q.type === 'pilihan_ganda_kompleks' ? 'MCMA' : 'TF',
+        image: q.image || ''
+    };
+
+    if (q.type === 'pilihan_ganda') {
+        payload.options = [q.option_a, q.option_b, q.option_c, q.option_d];
+        payload.answer = q.correct_answer;
+    } else {
+        payload.options = q.statements?.map(s => s.text) || [];
+        if (q.type === 'pilihan_ganda_kompleks') {
+            payload.answer = q.statements?.map((s, i) => s.isCorrect ? String.fromCharCode(65 + i) : null).filter(Boolean).join(',');
+        }
+    }
+
+    const { error } = await supabase.from('questions').insert([payload]);
+    if (error) throw error;
   },
-  deleteQuestion: (id: string) => {
-    const questions = api.getQuestions();
-    setStorage('questions', questions.filter(q => q.id !== id));
+  updateQuestion: async (q: Question) => {
+    const payload: any = {
+        subject: q.subject,
+        question: q.question,
+        type: q.type === 'pilihan_ganda' ? 'MC' : q.type === 'pilihan_ganda_kompleks' ? 'MCMA' : 'TF',
+        image: q.image || ''
+    };
+
+    if (q.type === 'pilihan_ganda') {
+        payload.options = [q.option_a, q.option_b, q.option_c, q.option_d];
+        payload.answer = q.correct_answer;
+    } else {
+        payload.options = q.statements?.map(s => s.text) || [];
+        if (q.type === 'pilihan_ganda_kompleks') {
+            payload.answer = q.statements?.map((s, i) => s.isCorrect ? String.fromCharCode(65 + i) : null).filter(Boolean).join(',');
+        }
+    }
+
+    const { error } = await supabase.from('questions').update(payload).eq('id', q.id);
+    if (error) throw error;
   },
-  setQuestions: (qs: Question[]) => setStorage('questions', qs), // For import formatting
+  deleteQuestion: async (id: string) => {
+    const { error } = await supabase.from('questions').delete().eq('id', id);
+    if (error) throw error;
+  },
+  setQuestions: async (qs: Question[]) => {
+    // This is for mass import, complex mapping might be needed but let's keep it simple for now
+    const payloads = qs.map(q => {
+        const payload: any = {
+            id: q.id,
+            subject: q.subject,
+            question: q.question,
+            type: q.type === 'pilihan_ganda' ? 'MC' : q.type === 'pilihan_ganda_kompleks' ? 'MCMA' : 'TF',
+            image: q.image || ''
+        };
+        if (q.type === 'pilihan_ganda') {
+            payload.options = [q.option_a, q.option_b, q.option_c, q.option_d];
+            payload.answer = q.correct_answer;
+        } else {
+            payload.options = q.statements?.map(s => s.text) || [];
+            if (q.type === 'pilihan_ganda_kompleks') {
+                payload.answer = q.statements?.map((s, i) => s.isCorrect ? String.fromCharCode(65 + i) : null).filter(Boolean).join(',');
+            }
+        }
+        return payload;
+    });
+    const { error } = await supabase.from('questions').upsert(payloads);
+    if (error) throw error;
+  },
 
   // --- Results ---
-  getResults: () => getStorage<Result[]>('results', []),
-  addResult: (res: Result) => {
-    const results = api.getResults();
-    setStorage('results', [...results, res]);
+  getResults: async () => {
+    const { data, error } = await supabase.from('results').select('*').order('timestamp', { ascending: false });
+    if (error) throw error;
+    return (data || []) as Result[];
   },
-  updateResult: (res: Result) => {
-    const results = api.getResults();
-    setStorage('results', results.map(existing => existing.id === res.id ? res : existing));
+  addResult: async (res: Result) => {
+    const { error } = await supabase.from('results').insert([res]);
+    if (error) throw error;
   },
-  deleteResult: (id: string) => {
-    const results = api.getResults();
-    setStorage('results', results.filter(r => r.id !== id));
+  updateResult: async (res: Result) => {
+    const { error } = await supabase.from('results').update(res).eq('id', res.id);
+    if (error) throw error;
+  },
+  deleteResult: async (id: string) => {
+    const { error } = await supabase.from('results').delete().eq('id', id);
+    if (error) throw error;
   },
 
   // --- Exam State (Concurrent Sessions) ---
-  getAllExamStates: () => getStorage<Record<string, ExamState>>('exam_states', {}),
-  getExamState: (studentId: string) => {
-    const states = getStorage<Record<string, ExamState>>('exam_states', {});
-    return states[studentId] || null;
+  getAllExamStates: async () => {
+    const { data, error } = await supabase.from('exam_states').select('*');
+    if (error) throw error;
+    const result: Record<string, ExamState> = {};
+    (data || []).forEach(s => {
+        result[s.studentId] = s;
+    });
+    return result;
   },
-  setExamState: (state: ExamState) => {
-    const states = getStorage<Record<string, ExamState>>('exam_states', {});
-    states[state.studentId] = state;
-    setStorage('exam_states', states);
+  getExamState: async (studentId: string) => {
+    const { data, error } = await supabase.from('exam_states').select('*').eq('studentId', studentId).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as ExamState | null;
   },
-  updateExamState: (studentId: string, update: Partial<ExamState>) => {
-    const states = getStorage<Record<string, ExamState>>('exam_states', {});
-    if (states[studentId]) {
-      states[studentId] = { ...states[studentId], ...update };
-      setStorage('exam_states', states);
-    }
+  setExamState: async (state: ExamState) => {
+    const { error } = await supabase.from('exam_states').upsert(state);
+    if (error) throw error;
   },
-  deleteExamState: (studentId: string) => {
-    const states = getStorage<Record<string, ExamState>>('exam_states', {});
-    delete states[studentId];
-    setStorage('exam_states', states);
+  updateExamState: async (studentId: string, update: Partial<ExamState>) => {
+    const { error } = await supabase.from('exam_states').update(update).eq('studentId', studentId);
+    if (error) throw error;
+  },
+  deleteExamState: async (studentId: string) => {
+    const { error } = await supabase.from('exam_states').delete().eq('studentId', studentId);
+    if (error) throw error;
   },
   
   // --- Helpers ---
-  getResultsByStudent: (studentId: string) => {
-    return api.getResults().filter(r => r.studentId === studentId);
+  getResultsByStudent: async (studentId: string) => {
+    const { data, error } = await supabase.from('results').select('*').eq('studentId', studentId);
+    if (error) throw error;
+    return (data || []) as Result[];
   },
-  clearAll: () => localStorage.clear(),
+  clearAll: async () => {
+    // DANGEROUS: Usually not used in real Supabase production except for dev
+    console.warn("clearAll called - this implemention only clears localStorage. Supabase must be managed via dashboard or migration scripts.");
+    localStorage.clear();
+  },
 
-  // --- Database Seeding ---
-  initializeDatabase: async (force = false) => {
-    const isFirstRun = !localStorage.getItem('db_initialized');
-    if (!isFirstRun && !force) return;
-
-    try {
-      let uniqueQuestions: Question[] = [];
-      let supabaseSuccess = false;
-
-      // Try Supabase first
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (supabaseUrl && supabaseKey) {
-        try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          const { data, error } = await supabase.from('questions').select('*');
-          
-          if (!error && data && data.length > 0) {
-             const mappedQuestions = data.map((q: any) => {
-                let qTypeRaw = (q.type || '').toUpperCase();
-                let qType: QuestionType = 'pilihan_ganda';
-                
-                if (qTypeRaw === 'MC' || qTypeRaw === 'PILIHAN_GANDA') qType = 'pilihan_ganda';
-                else if (qTypeRaw === 'MCMA' || qTypeRaw === 'PILIHAN_GANDA_KOMPLEKS') qType = 'pilihan_ganda_kompleks';
-                else if (qTypeRaw === 'TF' || qTypeRaw === 'MULTIPLE_CHOICE_MULTIPLE_ANSWER') qType = 'multiple_choice_multiple_answer';
-
-                const res: Question = {
-                  id: q.id || 'Q-' + Math.random().toString(36).substring(2, 9),
-                  subject: q.subject || 'Umum',
-                  question: q.question,
-                  type: qType,
-                  image: q.image || ''
-                };
-
-                let optionsArray: any[] = [];
-                try {
-                    optionsArray = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
-                } catch(e) {}
-
-                if (qType === 'pilihan_ganda') {
-                  res.option_a = optionsArray[0] || '';
-                  res.option_b = optionsArray[1] || '';
-                  res.option_c = optionsArray[2] || '';
-                  res.option_d = optionsArray[3] || '';
-                  res.correct_answer = (q.answer || 'A') as any;
-                } else if (qType === 'pilihan_ganda_kompleks') {
-                  const correctAnswers = (q.answer || '').toUpperCase().split(',').map((s: string) => s.trim());
-                  res.statements = optionsArray.map((opt: any, idx: number) => {
-                      const letter = String.fromCharCode(65 + idx);
-                      return { text: typeof opt === 'string' ? opt : (opt.statement || ''), isCorrect: correctAnswers.includes(letter) };
-                  });
-                } else if (qType === 'multiple_choice_multiple_answer') {
-                  res.statements = optionsArray.map((opt: any) => {
-                      return { text: opt.statement || typeof opt === 'string' ? opt : '', correctAnswer: opt.answer || 'Sesuai' };
-                  });
-                }
-                return res;
-              });
-              
-              api.setQuestions(mappedQuestions);
-              console.log('Database initialized from Supabase');
-              supabaseSuccess = true;
-          } else if (error) {
-              console.warn("Supabase fetch failed", error);
-          }
-        } catch(e) {
-          console.warn("Supabase initialization failed", e);
-        }
-      }
-
-      // Always load static JSONs for students/results/tokens since they aren't fully migrated to Supabase yet
-      const [questionsJson, students, results, tokens] = await Promise.all([
-        supabaseSuccess ? Promise.resolve([]) : fetch('/database/questions.json').then(res => res.json()).catch(() => []),
-        fetch('/database/students.json').then(res => res.json()).catch(() => []),
-        fetch('/database/results.json').then(res => res.json()).catch(() => []),
-        fetch('/database/tokens.json').then(res => res.json()).catch(() => []),
-      ]);
-
-      if (!supabaseSuccess) {
-        let allQuestions = Array.isArray(questionsJson) ? [...questionsJson] : [];
-
-        try {
-          const biCsv = await fetch('/database/questions_bahasa_indonesia.csv').then(res => res.text());
-          if (biCsv && biCsv.length > 50 && !biCsv.includes('<!DOCTYPE html>')) {
-             const parsed = api.parseQuestionCSV(biCsv);
-             allQuestions = [...allQuestions, ...parsed];
-          }
-        } catch (e) {}
-
-        try {
-          const mtkCsv = await fetch('/database/questions_matematika.csv').then(res => res.text());
-          if (mtkCsv && mtkCsv.length > 50 && !mtkCsv.includes('<!DOCTYPE html>')) {
-             const parsed = api.parseQuestionCSV(mtkCsv);
-             allQuestions = [...allQuestions, ...parsed];
-          }
-        } catch (e) {}
-
-        // Deduplicate
-        uniqueQuestions = Array.from(new Map(allQuestions.map(q => [q.question, q])).values());
-        if (uniqueQuestions.length) api.setQuestions(uniqueQuestions);
-        console.log('Database initialized from public files');
-      }
-
-      if (students && students.length) api.setStudents(students);
-      if (results && results.length) setStorage('results', results);
-      if (tokens && tokens.length) api.setTokens(tokens);
-
-      localStorage.setItem('db_initialized', 'true');
-    } catch (err) {
-      console.error('Failed to initialize database:', err);
-    }
+  // --- Database Initialization (Empty for full online) ---
+  initializeDatabase: async () => {
+    // Nothing to seed locally anymore
+    console.log('Using Supabase as primary engine.');
   },
 
   resetDatabase: async () => {
+    // In full online mode, "reset" should probably just clear local storage session and reload
     localStorage.clear();
-    await api.initializeDatabase(true);
     window.location.reload();
   },
 
-  // --- Helper for CSV parsing in lib ---
+  // --- CSV Parsers ---
   parseCSV: (content: string) => {
     const rows: string[][] = [];
     let currentRow: string[] = [];
@@ -300,34 +326,34 @@ export const api = {
     let inQuotes = false;
 
     for (let i = 0; i < content.length; i++) {
-      const char = content[i];
-      const nextChar = content[i + 1];
+        const char = content[i];
+        const nextChar = content[i + 1];
 
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          currentCell += '"';
-          i++;
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                currentCell += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            currentRow.push(currentCell.trim());
+            currentCell = '';
+        } else if ((char === '\r' || char === '\n') && !inQuotes) {
+            if (currentCell || currentRow.length > 0) {
+                currentRow.push(currentCell.trim());
+                rows.push(currentRow);
+                currentRow = [];
+                currentCell = '';
+            }
+            if (char === '\r' && nextChar === '\n') i++;
         } else {
-          inQuotes = !inQuotes;
+            currentCell += char;
         }
-      } else if (char === ',' && !inQuotes) {
-        currentRow.push(currentCell.trim());
-        currentCell = '';
-      } else if ((char === '\r' || char === '\n') && !inQuotes) {
-        if (currentCell || currentRow.length > 0) {
-          currentRow.push(currentCell.trim());
-          rows.push(currentRow);
-          currentRow = [];
-          currentCell = '';
-        }
-        if (char === '\r' && nextChar === '\n') i++;
-      } else {
-        currentCell += char;
-      }
     }
     if (currentCell || currentRow.length > 0) {
-      currentRow.push(currentCell.trim());
-      rows.push(currentRow);
+        currentRow.push(currentCell.trim());
+        rows.push(currentRow);
     }
     return rows;
   },
@@ -402,3 +428,4 @@ export const api = {
     }));
   }
 };
+

@@ -34,38 +34,54 @@ const Exam = () => {
       nextLocation.pathname !== '/review'
   );
 
-  useEffect(() => {
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const loadExam = async () => {
     if (!auth.student) {
       navigate('/login');
       return;
     }
-    const state = api.getExamState(auth.student.id);
-    if (!state || state.submitted || state.studentId !== auth.student.id) {
-      navigate('/instructions');
-      return;
+    
+    setIsSyncing(true);
+    try {
+        const state = await api.getExamState(auth.student.id);
+        if (!state || state.submitted || state.studentId !== auth.student.id) {
+          navigate('/instructions');
+          return;
+        }
+
+        const tokens = await api.getTokens();
+        const token = tokens.find(t => t.id === state.tokenId);
+        if (!token) {
+          navigate('/instructions');
+          return;
+        }
+
+        setTokenInfo(token);
+
+        let activeState = { ...state };
+        if (!activeState.startTime) {
+          const serverTime = await getServerTime();
+          activeState.startTime = serverTime;
+          activeState.endTime = activeState.startTime + (token.durationMinutes * 60 * 1000);
+          if (!activeState.doubt) activeState.doubt = {};
+          await api.setExamState(activeState);
+        }
+        setExamState(activeState);
+
+        const allQs = await api.getQuestions();
+        const orderedQs = activeState.questionOrder.map(id => allQs.find(q => q.id === id)).filter(Boolean) as Question[];
+        setQuestions(orderedQs);
+    } catch (err) {
+        console.error("Exam load error:", err);
+    } finally {
+        setIsSyncing(false);
     }
+  };
 
-    const token = api.getTokens().find(t => t.id === state.tokenId);
-    if (!token) {
-      navigate('/instructions');
-      return;
-    }
-
-    setTokenInfo(token);
-
-    let activeState = { ...state };
-    if (!activeState.startTime) {
-      activeState.startTime = getServerTime();
-      activeState.endTime = activeState.startTime + (token.durationMinutes * 60 * 1000);
-      if (!activeState.doubt) activeState.doubt = {};
-      api.setExamState(activeState);
-    }
-    setExamState(activeState);
-
-    const allQs = api.getQuestions();
-    const orderedQs = activeState.questionOrder.map(id => allQs.find(q => q.id === id)).filter(Boolean) as Question[];
-    setQuestions(orderedQs);
-  }, [auth.student, navigate]);
+  useEffect(() => {
+    loadExam();
+  }, [auth.student]);
 
   useEffect(() => {
     if (questionRef.current) {
@@ -99,14 +115,21 @@ const Exam = () => {
     return () => clearInterval(timerId);
   }, [examState?.endTime, navigate]);
 
-  const handleSelectAnswer = (ans: any) => {
-    if (!examState || !questions[currentIndex]) return;
+  const handleSelectAnswer = async (ans: any) => {
+    if (!examState || !questions[currentIndex] || !auth.student) return;
 
     const qId = questions[currentIndex].id;
     const newAnswers = { ...examState.answers, [qId]: ans };
 
     setExamState({ ...examState, answers: newAnswers });
-    api.updateExamState(auth.student!.id, { answers: newAnswers });
+    setIsSyncing(true);
+    try {
+        await api.updateExamState(auth.student.id, { answers: newAnswers });
+    } catch (err) {
+        console.error("Sync error:", err);
+    } finally {
+        setIsSyncing(false);
+    }
   };
 
   const handleComplexToggle = (index: number) => {
@@ -137,18 +160,30 @@ const Exam = () => {
     handleSelectAnswer(newAns);
   };
 
-  const toggleDoubt = () => {
-    if (!examState || !questions[currentIndex]) return;
+  const toggleDoubt = async () => {
+    if (!examState || !questions[currentIndex] || !auth.student) return;
 
     const qId = questions[currentIndex].id;
     const newDoubt = { ...examState.doubt, [qId]: !examState.doubt[qId] };
 
     setExamState({ ...examState, doubt: newDoubt });
-    api.updateExamState(auth.student!.id, { doubt: newDoubt });
+    setIsSyncing(true);
+    try {
+        await api.updateExamState(auth.student.id, { doubt: newDoubt });
+    } catch (err) {
+        console.error("Sync error:", err);
+    } finally {
+        setIsSyncing(false);
+    }
   }
 
-  if (!examState || !tokenInfo || questions.length === 0) {
-    return <div className="p-8 text-center text-xl font-bold">Loading CBT Environment...</div>;
+  if (!examState || !tokenInfo || (questions.length === 0 && !isSyncing)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-neutral-50 gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-500"></div>
+        <p className="text-xl font-bold text-blue-900">Loading CBT Environment...</p>
+      </div>
+    );
   }
 
   const currentQ = questions[currentIndex];
@@ -298,7 +333,8 @@ const Exam = () => {
 
             {/* Timer */}
             <div className="bg-blue-800 flex items-center px-3 sm:px-6 py-2 shadow-inner">
-              <div className="text-right">
+               {isSyncing && <div className="mr-3 animate-pulse text-[10px] font-black uppercase text-blue-300">Syncing...</div>}
+               <div className="text-right">
                 <div className="hidden xs:block text-xs text-blue-300 uppercase font-bold">Sisa Waktu</div>
                 <div className={`text-lg sm:text-2xl font-black font-mono tracking-wider ${timeLeft < 300 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
                   {formatTime(timeLeft)}

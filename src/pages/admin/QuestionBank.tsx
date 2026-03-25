@@ -30,37 +30,65 @@ const QuestionBank = () => {
   const [formData, setFormData] = useState<Partial<Question>>(initialFormData);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const data = api.getQuestions();
-    setQuestions(data);
-  }, []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [subjects, setSubjects] = useState<string[]>(['All']);
 
-  const subjects = ['All', ...Array.from(new Set(api.getQuestions().map(q => q.subject)))];
+  const fetchQuestions = async () => {
+    setIsLoading(true);
+    try {
+      const data = await api.getQuestions();
+      setQuestions(data);
+      const uniqueSubjects = ['All', ...Array.from(new Set(data.map(q => q.subject)))];
+      setSubjects(uniqueSubjects);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuestions();
+  }, []);
 
   const filteredQuestions = filterSubject === 'All' 
     ? questions 
     : questions.filter(q => q.subject === filterSubject);
 
-  const handleReorder = (newOrder: Question[]) => {
+  const handleReorder = async (newOrder: Question[]) => {
     if (filterSubject !== 'All') return; // Reorder only in 'All' view for simplicity
     setQuestions(newOrder);
-    api.setQuestions(newOrder);
+    setIsLoading(true);
+    try {
+        await api.setQuestions(newOrder);
+    } catch (err) {
+        alert("Failed to save new order");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.subject || !formData.question) return alert("Subject and Question required");
     
-    const newQuestion = { ...formData, id: editingId || 'Q-' + Date.now().toString(36) } as Question;
-    
-    if (editingId) {
-      api.updateQuestion(newQuestion);
-    } else {
-      api.addQuestion(newQuestion);
+    setIsLoading(true);
+    try {
+        const newQuestion = { ...formData, id: editingId || 'Q-' + Date.now().toString(36) } as Question;
+        
+        if (editingId) {
+          await api.updateQuestion(newQuestion);
+        } else {
+          await api.addQuestion(newQuestion);
+        }
+        
+        await fetchQuestions();
+        onCloseForm();
+    } catch (err) {
+        alert("Failed to save question");
+    } finally {
+        setIsLoading(false);
     }
-    
-    setQuestions(api.getQuestions());
-    onCloseForm();
   };
 
   const handleEdit = (q: Question) => {
@@ -73,10 +101,17 @@ const QuestionBank = () => {
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Delete this question?")) {
-      api.deleteQuestion(id);
-      setQuestions(api.getQuestions());
+      setIsLoading(true);
+      try {
+        await api.deleteQuestion(id);
+        await fetchQuestions();
+      } catch (err) {
+        alert("Failed to delete question");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -106,13 +141,20 @@ const QuestionBank = () => {
     );
   };
 
-  const handleBatchDelete = () => {
+  const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
     if (confirm(`Delete ${selectedIds.length} selected questions?`)) {
-      const remaining = questions.filter(q => !selectedIds.includes(q.id));
-      api.setQuestions(remaining);
-      setQuestions(remaining);
-      setSelectedIds([]);
+      setIsLoading(true);
+      try {
+          const remaining = questions.filter(q => !selectedIds.includes(q.id));
+          await api.setQuestions(remaining);
+          await fetchQuestions();
+          setSelectedIds([]);
+      } catch (err) {
+          alert("Failed to delete questions");
+      } finally {
+          setIsLoading(false);
+      }
     }
   };
 
@@ -182,19 +224,23 @@ const QuestionBank = () => {
           
           <form onSubmit={handleSave} className="grid md:grid-cols-2 gap-x-6 gap-y-4">
             <div className="input-group">
-              <label className="input-label">Subject Category</label>
+              <label className="input-label" htmlFor="qb-subject">Subject Category</label>
               <input 
+                id="qb-subject"
                 type="text" className="input-field" placeholder="e.g. Mathematics, Science"
                 value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})}
+                title="Enter subject category"
               />
             </div>
 
             <div className="input-group">
-              <label className="input-label">Question Type</label>
+              <label className="input-label" htmlFor="qb-type">Question Type</label>
               <select 
+                id="qb-type"
                 className="input-field"
                 value={formData.type} 
                 onChange={e => setFormData({...formData, type: e.target.value as any})}
+                title="Select question type"
               >
                 <option value="pilihan_ganda">Pilihan Ganda (Single Choice)</option>
                 <option value="pilihan_ganda_kompleks">Pilihan Ganda Kompleks (Choose 2 of 3)</option>
@@ -207,6 +253,7 @@ const QuestionBank = () => {
               <textarea 
                 className="input-field min-h-[100px]" placeholder="Type your full question here..."
                 value={formData.question} onChange={e => setFormData({...formData, question: e.target.value})}
+                title="Enter question text"
               />
             </div>
 
@@ -215,6 +262,7 @@ const QuestionBank = () => {
               <input 
                 type="text" className="input-field" placeholder="https://example.com/image.jpg"
                 value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})}
+                title="Enter image URL (optional)"
               />
               {formData.image && (
                 <div className="mt-2 p-2 border border-border rounded-lg bg-background inline-block">
@@ -226,27 +274,29 @@ const QuestionBank = () => {
             {formData.type === 'pilihan_ganda' && (
               <>
                 <div className="input-group">
-                  <label className="input-label">Option A</label>
-                  <input type="text" className="input-field border-primary/30" value={formData.option_a} onChange={e => setFormData({...formData, option_a: e.target.value})} />
+                  <label className="input-label" htmlFor="qb-opt-a">Option A</label>
+                  <input id="qb-opt-a" type="text" className="input-field border-primary/30" value={formData.option_a} onChange={e => setFormData({...formData, option_a: e.target.value})} title="Option A text" placeholder="Answer choice A" />
                 </div>
                 <div className="input-group">
-                  <label className="input-label">Option B</label>
-                  <input type="text" className="input-field border-primary/30" value={formData.option_b} onChange={e => setFormData({...formData, option_b: e.target.value})} />
+                  <label className="input-label" htmlFor="qb-opt-b">Option B</label>
+                  <input id="qb-opt-b" type="text" className="input-field border-primary/30" value={formData.option_b} onChange={e => setFormData({...formData, option_b: e.target.value})} title="Option B text" placeholder="Answer choice B" />
                 </div>
                 <div className="input-group">
-                  <label className="input-label">Option C</label>
-                  <input type="text" className="input-field border-primary/30" value={formData.option_c} onChange={e => setFormData({...formData, option_c: e.target.value})} />
+                  <label className="input-label" htmlFor="qb-opt-c">Option C</label>
+                  <input id="qb-opt-c" type="text" className="input-field border-primary/30" value={formData.option_c} onChange={e => setFormData({...formData, option_c: e.target.value})} title="Option C text" placeholder="Answer choice C" />
                 </div>
                 <div className="input-group">
-                  <label className="input-label">Option D</label>
-                  <input type="text" className="input-field border-primary/30" value={formData.option_d} onChange={e => setFormData({...formData, option_d: e.target.value})} />
+                  <label className="input-label" htmlFor="qb-opt-d">Option D</label>
+                  <input id="qb-opt-d" type="text" className="input-field border-primary/30" value={formData.option_d} onChange={e => setFormData({...formData, option_d: e.target.value})} title="Option D text" placeholder="Answer choice D" />
                 </div>
                 <div className="input-group md:col-span-2">
-                  <label className="input-label">Correct Answer</label>
+                  <label className="input-label" htmlFor="qb-correct">Correct Answer</label>
                   <select 
+                    id="qb-correct"
                     className="input-field text-lg font-bold bg-secondary/10 border-secondary/50 text-secondary"
                     value={formData.correct_answer} 
                     onChange={e => setFormData({...formData, correct_answer: e.target.value as 'A'|'B'|'C'|'D'})}
+                    title="Select the correct option"
                   >
                     <option value="A">Choice A</option>
                     <option value="B">Choice B</option>
@@ -264,14 +314,18 @@ const QuestionBank = () => {
                   <div key={i} className="flex gap-4 items-center bg-background/30 p-3 rounded-lg border border-border">
                     <span className="font-bold text-primary">{i+1}.</span>
                     <input 
+                      id={`qb-stmt-${i}`}
                       type="text" className="input-field flex-1" placeholder={`Statement ${i+1}`}
                       value={s.text} onChange={e => updateStatement(i, 'text', e.target.value)}
+                      title={`Statement ${i+1} text`}
                     />
                     {formData.type === 'pilihan_ganda_kompleks' ? (
                       <div className="flex items-center gap-2">
                         <input 
                           type="checkbox" className="w-5 h-5" 
                           checked={s.isCorrect} onChange={e => updateStatement(i, 'isCorrect', e.target.checked)}
+                          aria-label={`Statement ${i+1} is correct`}
+                          title={`Mark statement ${i+1} as correct`}
                         />
                         <span className="text-xs font-bold">Benar</span>
                       </div>
@@ -279,6 +333,7 @@ const QuestionBank = () => {
                       <select 
                         className="input-field w-32"
                         value={s.correctAnswer} onChange={e => updateStatement(i, 'correctAnswer', e.target.value)}
+                        title={`Correct answer for statement ${i+1}`}
                       >
                         <option value="Sesuai">Sesuai</option>
                         <option value="Tidak Sesuai">Tidak Sesuai</option>
@@ -303,6 +358,7 @@ const QuestionBank = () => {
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Filter size={20} className="text-primary" />
             {filterSubject === 'All' ? 'All Questions' : `${filterSubject} Questions`} ({filteredQuestions.length})
+            {isLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary ml-2"></div>}
           </h2>
           {filterSubject === 'All' ? (
              <p className="text-xs text-text-muted italic">Drag the handle to reorder questions.</p>
