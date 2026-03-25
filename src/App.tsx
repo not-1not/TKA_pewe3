@@ -68,7 +68,7 @@ const router = createBrowserRouter([
       { path: "/admin/results", element: <ProtectedAdminRoute><AdminResults /></ProtectedAdminRoute> },
     ]
   }
-]);
+], { basename: import.meta.env.BASE_URL });
 
 // 🧩 App root
 function App() {
