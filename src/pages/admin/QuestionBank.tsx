@@ -697,6 +697,7 @@ const QuestionBank = () => {
                 value={formData.package} onChange={e => setFormData({ ...formData, package: e.target.value })}
                 title="Enter question package group"
               />
+              <p className="text-xs text-text-muted mt-1">Group questions into packages/pakets</p>
             </div>
 
             <div className="input-group">
@@ -707,6 +708,7 @@ const QuestionBank = () => {
                 value={formData.subject} onChange={e => setFormData({ ...formData, subject: e.target.value })}
                 title="Enter subject category"
               />
+              <p className="text-xs text-text-muted mt-1">Subject/category (Math, Bio, etc)</p>
             </div>
 
             <div className="input-group">
@@ -718,10 +720,11 @@ const QuestionBank = () => {
                 onChange={e => setFormData({ ...formData, type: e.target.value as any })}
                 title="Select question type"
               >
-                <option value="pilihan_ganda">Pilihan Ganda (Single Choice)</option>
-                <option value="pilihan_ganda_kompleks">Pilihan Ganda Kompleks (Choose 2 of 3)</option>
-                <option value="multiple_choice_multiple_answer">MCMA (Sesuai / Tidak Sesuai)</option>
+                <option value="pilihan_ganda">PG - Pilihan Ganda (Single Choice A/B/C/D)</option>
+                <option value="pilihan_ganda_kompleks">PK - Pilihan Ganda Kompleks (Choose 2 of 3)</option>
+                <option value="multiple_choice_multiple_answer">MCMA - Multiple Choice (Sesuai/Tidak Sesuai)</option>
               </select>
+              <p className="text-xs text-text-muted mt-1">PG: 4 options, 1 answer | PK: 3 statements, 2 correct | MCMA: 3 statements, S/T each</p>
             </div>
 
             <div className="input-group md:col-span-2">
@@ -1114,11 +1117,17 @@ const QuestionBank = () => {
             </h2>
             <p className="text-sm text-text-muted mb-4 font-bold">
               Paste from Excel/Sheets. Use Tab or Pipe (|) as separator.&#10;
-              Columns: <span className="text-primary bg-primary/10 px-1 rounded uppercase tracking-tighter">Package | Subject | Question | Type (PG/PK/MCMA) | OptA | OptB | OptC | OptD | Answer</span>
+              <span className="block mt-2 text-primary bg-primary/10 p-2 rounded">
+                Format: <strong>Package | Subject | Question | Type (PG/PK/MCMA) | Stmt/OptA | Stmt/OptB | Stmt/OptC | OptD | Answer</strong>
+              </span>
+              <span className="block text-xs mt-2">Examples:</span>
+              <span className="block text-xs text-text-muted font-mono">PG: Paket A | Math | 1+1? | PG | 1 | 2 | 3 | 4 | B</span>
+              <span className="block text-xs text-text-muted font-mono">PK: Paket A | Bio | Tumbuhan? | PK | Akar | Batang | Daun | - | A,B</span>
+              <span className="block text-xs text-text-muted font-mono">MCMA: Paket A | IPA | Energi? | MCMA | Panas | Cahaya | Gerak | - | S,T,S</span>
             </p>
             <textarea
               className="input-field h-80 font-mono text-xs mb-6"
-              placeholder="Paket A | Mat | 1+1? | PG | 1 | 2 | 3 | 4 | B&#10;Paket A | Bio | Tumbuhan? | PK | Akar | Batang | Daun | - | A,B"
+              placeholder="Paket A | Math | What is 1+1? | PG | 1 | 2 | 3 | 4 | B&#10;Paket A | Bio | Plant parts? | PK | Root | Stem | Leaf | - | A,B&#10;Paket A | Science | Energy types? | MCMA | Heat | Light | Motion | - | S,T,S"
               value={bulkText}
               onChange={e => setBulkText(e.target.value)}
               title="Paste your questions here"
