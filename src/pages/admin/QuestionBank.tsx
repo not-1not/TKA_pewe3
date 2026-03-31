@@ -441,6 +441,69 @@ const QuestionBank = () => {
     }
   };
 
+  const formatQuestionForExport = (q: Question): string => {
+    const pkg = q.package || '';
+    const subj = q.subject || '';
+    const qText = (q.question || '').replace(/\|/g, ' ');
+    let type = 'PG';
+    let line = '';
+
+    if (q.type === 'pilihan_ganda') {
+      type = 'PG';
+      const optA = (q.option_a || '').replace(/\|/g, ' ');
+      const optB = (q.option_b || '').replace(/\|/g, ' ');
+      const optC = (q.option_c || '').replace(/\|/g, ' ');
+      const optD = (q.option_d || '').replace(/\|/g, ' ');
+      const ans = q.correct_answer || 'A';
+      line = `${pkg}|${subj}|${qText}|${type}|${optA}|${optB}|${optC}|${optD}|${ans}`;
+    } else if (q.type === 'pilihan_ganda_kompleks') {
+      type = 'PK';
+      const stmts = q.statements || [];
+      const stmt1 = (stmts[0]?.text || '').replace(/\|/g, ' ');
+      const stmt2 = (stmts[1]?.text || '').replace(/\|/g, ' ');
+      const stmt3 = (stmts[2]?.text || '').replace(/\|/g, ' ');
+      const correctLetters = stmts
+        .map((s, i) => s.isCorrect ? String.fromCharCode(65 + i) : null)
+        .filter(Boolean)
+        .join(',');
+      line = `${pkg}|${subj}|${qText}|${type}|${stmt1}|${stmt2}|${stmt3}|-|${correctLetters}`;
+    } else if (q.type === 'multiple_choice_multiple_answer') {
+      type = 'MCMA';
+      const stmts = q.statements || [];
+      const stmt1 = (stmts[0]?.text || '').replace(/\|/g, ' ');
+      const stmt2 = (stmts[1]?.text || '').replace(/\|/g, ' ');
+      const stmt3 = (stmts[2]?.text || '').replace(/\|/g, ' ');
+      const answers = stmts
+        .map(s => (s.correctAnswer || 'Sesuai').charAt(0))
+        .join(',');
+      line = `${pkg}|${subj}|${qText}|${type}|${stmt1}|${stmt2}|${stmt3}|-|${answers}`;
+    }
+
+    return line;
+  };
+
+  const handleDownloadPackage = () => {
+    if (filteredQuestions.length === 0) {
+      alert('No questions to download. Apply filters first.');
+      return;
+    }
+
+    const header = 'Package|Subject|Question|Type (PG/PK/MCMA)|OptA|OptB|OptC|OptD|Answer';
+    const lines = [header, ...filteredQuestions.map(formatQuestionForExport)];
+    const content = lines.join('\n');
+
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+    const filename = `questions_${new Date().toISOString().split('T')[0]}.txt`;
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+
+    alert(`Downloaded ${filteredQuestions.length} questions as ${filename}`);
+  };
+
   const packageStats = allUniquePackages.map(p => ({
     name: p,
     count: questions.filter(q => q.package === p).length
@@ -458,6 +521,13 @@ const QuestionBank = () => {
         <div className="flex gap-3 w-full md:w-auto">
           <button onClick={() => setShowBulkAdd(true)} className="btn btn-outline border-primary text-primary hover:bg-primary/5 shadow-sm flex-1 md:flex-none">
             <Upload size={20} /> Bulk Add
+          </button>
+          <button 
+            onClick={handleDownloadPackage}
+            disabled={filteredQuestions.length === 0}
+            className="btn btn-outline border-secondary text-secondary hover:bg-secondary/5 shadow-sm flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Upload size={20} className="rotate-180" /> Download
           </button>
           <button
             onClick={() => {
