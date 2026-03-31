@@ -41,6 +41,7 @@ const QuestionBank = () => {
   const [packages, setPackages] = useState<string[]>(['All']);
   const [tempPackages, setTempPackages] = useState<string[]>([]);
   const [tempSubjects, setTempSubjects] = useState<string[]>([]);
+  const [newPackageName, setNewPackageName] = useState('');
 
   const fetchQuestions = async () => {
     setIsLoading(true);
@@ -376,6 +377,32 @@ const QuestionBank = () => {
   const allUniquePackages = Array.from(new Set([...packages, ...tempPackages])).filter(p => p !== 'All');
   const allUniqueSubjects = Array.from(new Set([...subjects, ...tempSubjects])).filter(s => s !== 'All');
 
+  const handleCreatePackage = () => {
+    const trimmed = newPackageName.trim();
+    if (!trimmed) return alert('Package name cannot be empty');
+    if (allUniquePackages.includes(trimmed)) return alert('Package already exists');
+
+    setTempPackages(prev => [...prev, trimmed]);
+    setNewPackageName('');
+    setFilterPackage(trimmed);
+    setSelectedIds([]);
+    alert(`Package '${trimmed}' created. Select questions and click Move to assign.`);
+  };
+
+  const handleInlinePackageUpdate = async (q: Question, value: string) => {
+    setIsLoading(true);
+    try {
+      await api.updateQuestion({ ...q, package: value });
+      await fetchQuestions();
+      alert('Question package updated successfully');
+    } catch (err: any) {
+      console.error('Failed to update question package:', err);
+      alert(`Failed to update question package: ${err?.message || err}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const packageStats = allUniquePackages.map(p => ({
     name: p,
     count: questions.filter(q => q.package === p).length
@@ -652,8 +679,23 @@ const QuestionBank = () => {
               `${filterSubject !== 'All' ? filterSubject : ''} ${filterPackage !== 'All' ? `[${filterPackage}]` : ''} Questions`}
             ({filteredQuestions.length})
             {isLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary ml-2"></div>}
-          </h2>
-          <div className="relative w-full sm:w-64">
+          </h2>          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              className="input-field w-full sm:w-72"
+              placeholder="New Package Name"
+              value={newPackageName}
+              onChange={e => setNewPackageName(e.target.value)}
+              title="Create a package label for grouping questions"
+            />
+            <button
+              onClick={handleCreatePackage}
+              className="btn btn-secondary py-2 px-4 text-sm"
+            >
+              Create Package
+            </button>
+            <span className="text-xs text-text-muted">When created, assign questions with bulk move or inline select below.</span>
+          </div>          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
             <input
               type="text"
@@ -792,13 +834,17 @@ const QuestionBank = () => {
                     </td>
                     <td className="p-4 text-center font-bold text-text-muted">{idx + 1}</td>
                     <td className="p-4">
-                      {q.package ? (
-                        <span className="px-2 py-1 rounded bg-secondary/10 text-secondary text-[10px] font-black uppercase border border-secondary/20">
-                          {q.package}
-                        </span>
-                      ) : (
-                        <span className="text-text-muted italic text-[10px]">-</span>
-                      )}
+                      <select
+                        value={q.package || ''}
+                        onChange={e => handleInlinePackageUpdate(q, e.target.value)}
+                        className="input-field h-8 w-full text-xs"
+                        title="Assign question to package"
+                      >
+                        <option value="">No Package</option>
+                        {allUniquePackages.map(pkg => (
+                          <option key={pkg} value={pkg}>{pkg}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="p-4">
                       <span className="px-2 py-1 rounded bg-primary/10 text-primary text-[10px] font-black uppercase border border-primary/20">
