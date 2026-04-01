@@ -207,7 +207,8 @@ const QuestionBank = () => {
       const lines = bulkText.split('\n').filter(l => l.trim());
       const newQuestions: Question[] = lines.map(line => {
         const parts = line.split(/[\t|,]/).map(p => p.trim().replace(/^"|"$/g, ''));
-        // Format: package | subject | question | type | option_a | option_b | option_c | option_d | correct_answer | s1_text | s1_answer | s2_text | s2_answer | s3_text | s3_answer | image
+        
+        // Parse base columns (same as table display)
         const pkg = parts[0] || 'Default';
         const subj = parts[1] || 'Umum';
         const qText = parts[2] || '';
@@ -223,28 +224,32 @@ const QuestionBank = () => {
           subject: subj,
           question: qText,
           type: type,
-          image: parts[15] || ''
+          image: ''
         };
 
         if (type === 'pilihan_ganda') {
+          // For PG: parts[4-8] are option_a-d and correct_answer, parts[9] is image
           q.option_a = parts[4] || '';
           q.option_b = parts[5] || '';
           q.option_c = parts[6] || '';
           q.option_d = parts[7] || '';
-          q.correct_answer = (parts[8] || 'A') as any;
+          q.correct_answer = (parts[8] || 'A').toUpperCase() as any;
+          q.image = parts[9] || '';
         } else {
-          const s1_text = parts[9] || '';
-          const s1_ans = (parts[10] || '').toUpperCase();
-          const s2_text = parts[11] || '';
-          const s2_ans = (parts[12] || '').toUpperCase();
-          const s3_text = parts[13] || '';
-          const s3_ans = (parts[14] || '').toUpperCase();
+          // For PK/MCMA: parts[4-9] are s1_text, s1_ans, s2_text, s2_ans, s3_text, s3_ans, parts[10] is image
+          const s1_text = parts[4] || '';
+          const s1_ans = (parts[5] || '').toUpperCase();
+          const s2_text = parts[6] || '';
+          const s2_ans = (parts[7] || '').toUpperCase();
+          const s3_text = parts[8] || '';
+          const s3_ans = (parts[9] || '').toUpperCase();
+          q.image = parts[10] || '';
 
           if (type === 'pilihan_ganda_kompleks') {
             q.statements = [
-              { text: s1_text, isCorrect: s1_ans === 'TRUE' || s1_ans === 'A' || s1_ans === '1' },
-              { text: s2_text, isCorrect: s2_ans === 'TRUE' || s2_ans === 'B' || s2_ans === '1' },
-              { text: s3_text, isCorrect: s3_ans === 'TRUE' || s3_ans === 'C' || s3_ans === '1' },
+              { text: s1_text, isCorrect: s1_ans === 'TRUE' || s1_ans === '1' },
+              { text: s2_text, isCorrect: s2_ans === 'TRUE' || s2_ans === '1' },
+              { text: s3_text, isCorrect: s3_ans === 'TRUE' || s3_ans === '1' },
             ];
           } else if (type === 'multiple_choice_multiple_answer') {
             q.statements = [
@@ -507,32 +512,66 @@ const QuestionBank = () => {
       return;
     }
 
-    const csvHeaders = ['package', 'subject', 'question', 'type', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer', 's1_text', 's1_answer', 's2_text', 's2_answer', 's3_text', 's3_answer', 'image'];
+    // CSV format matches table display: package|subject|question|type + type-specific fields
     const csvRows = filteredQuestions.map(q => {
-      const row = [
-        q.package || '',
-        q.subject || '',
-        `"${(q.question || '').replace(/"/g, '""')}"`,
-        q.type || '',
-        q.option_a || '',
-        q.option_b || '',
-        q.option_c || '',
-        q.option_d || '',
-        q.correct_answer || '',
-        (q.statements?.[0]?.text || '').replace(/"/g, '""'),
-        q.statements?.[0]?.correctAnswer || q.statements?.[0]?.isCorrect ? 'TRUE' : '',
-        (q.statements?.[1]?.text || '').replace(/"/g, '""'),
-        q.statements?.[1]?.correctAnswer || q.statements?.[1]?.isCorrect ? 'TRUE' : '',
-        (q.statements?.[2]?.text || '').replace(/"/g, '""'),
-        q.statements?.[2]?.correctAnswer || q.statements?.[2]?.isCorrect ? 'TRUE' : '',
-        q.image || ''
+      let row = [
+        q.package || 'Default',
+        q.subject || 'Umum',
+        q.question || '',
+        q.type || 'pilihan_ganda'
       ];
-      return row.map(cell => 
-        typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) ? `"${cell.replace(/"/g, '""')}"` : cell
-      ).join(',');
+
+      // Add question-specific fields based on type
+      if (q.type === 'pilihan_ganda') {
+        row.push(
+          q.option_a || '',
+          q.option_b || '',
+          q.option_c || '',
+          q.option_d || '',
+          q.correct_answer || 'A'
+        );
+      } else {
+        // For PK and MCMA: add 3 statements
+        for (let i = 0; i < 3; i++) {
+          const stmt = q.statements?.[i];
+          if (stmt) {
+            row.push(stmt.text || '');
+            if (q.type === 'pilihan_ganda_kompleks') {
+              row.push(stmt.isCorrect ? 'TRUE' : 'FALSE');
+            } else {
+              row.push(stmt.correctAnswer || 'Tidak Sesuai');
+            }
+          } else {
+            row.push('', q.type === 'pilihan_ganda_kompleks' ? 'FALSE' : 'Tidak Sesuai');
+          }
+        }
+      }
+      
+      // Add image URL
+      row.push(q.image || '');
+
+      // Properly escape CSV values
+      return row.map(cell => {
+        const str = String(cell);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(',');
     });
 
-    const content = [csvHeaders.join(','), ...csvRows].join('\n');
+    // Build headers based on first question type
+    const firstType = filteredQuestions[0]?.type;
+    let headers = ['package', 'subject', 'question', 'type'];
+    
+    if (firstType === 'pilihan_ganda') {
+      headers.push('option_a', 'option_b', 'option_c', 'option_d', 'correct_answer');
+    } else {
+      headers.push('s1_text', 's1_answer', 's2_text', 's2_answer', 's3_text', 's3_answer');
+    }
+    headers.push('image');
+
+    const content = [headers.join(','), ...csvRows].join('\n');
     const element = document.createElement('a');
     element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(content));
     const filename = `questions_${new Date().toISOString().split('T')[0]}.csv`;
@@ -1116,23 +1155,22 @@ const QuestionBank = () => {
               <Upload className="text-primary" /> Bulk Import Questions
             </h2>
             <p className="text-sm text-text-muted mb-4 font-bold">
-              Paste from Excel/Sheets. Use Tab, Pipe (|), or Comma as separator.&#10;
+              Paste from Excel/Sheets (Tab, Pipe |, or Comma separator). Format matches table columns &amp; download CSV.&#10;
               <span className="block mt-2 text-primary bg-primary/10 p-2 rounded text-xs font-mono">
-                <strong>Format:</strong> package | subject | question | type | option_a | option_b | option_c | option_d | correct_answer | s1_text | s1_answer | s2_text | s2_answer | s3_text | s3_answer | image
+                <strong>Base format:</strong> package | subject | question | type | [type-specific fields] | image
               </span>
               <span className="block text-xs mt-2 text-text-muted">
-                <strong>Columns 0-3:</strong> Required (package, subject, question, type)<br/>
-                <strong>Columns 4-8:</strong> For PG only (leave empty for PK/MCMA)<br/>
-                <strong>Columns 9-15:</strong> For PK/MCMA only (leave empty for PG)<br/>
-                <strong>Column 15:</strong> Image URL (optional)
+                <strong>PG (Pilihan Ganda):</strong> package | subject | question | PG | optA | optB | optC | optD | answer(A/B/C/D) | [image]<br/>
+                <strong>PK (Pilihan Ganda Kompleks):</strong> package | subject | question | PK | s1_text | s1(TRUE/FALSE) | s2_text | s2(TRUE/FALSE) | s3_text | s3(TRUE/FALSE) | [image]<br/>
+                <strong>MCMA (Sesuai/Tidak Sesuai):</strong> package | subject | question | MCMA | s1_text | s1(S/T) | s2_text | s2(S/T) | s3_text | s3(S/T) | [image]
               </span>
             </p>
             <textarea
               className="input-field h-80 font-mono text-xs mb-6"
-              placeholder="PG|Math|1+1?|PG|1|2|3|4|B||||||||&#10;PK|Bio|Plant?|PK||||||Stem|||Root||Leaf||&#10;MCMA|IPA|Energy?|MCMA||||||Heat|S|Light|T|Motion|S|"
+              placeholder="Default|Math|1+1=?|PG|1|2|3|4|B|&#10;Default|Bio|Plant facts|PK|Has leaves|TRUE|Needs water|TRUE|Can move|FALSE|&#10;Default|IPA|Energy types|MCMA|Heat exists|S|Sound moves|S|Light stops|T|"
               value={bulkText}
               onChange={e => setBulkText(e.target.value)}
-              title="Paste your questions here"
+              title="Paste your questions here - matches downloadable CSV format"
             />
             <div className="flex gap-4">
               <button
