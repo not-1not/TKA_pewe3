@@ -14,6 +14,9 @@ const Tokens = () => {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [availablePackages, setAvailablePackages] = useState<string[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<string>('All');
+  // Pengaturan baru:
+  const [allowedSubjects, setAllowedSubjects] = useState<string[]>([]);
+  const [allowedPackages, setAllowedPackages] = useState<string[]>([]);
   
   const fetchData = async () => {
     setIsLoading(true);
@@ -214,6 +217,77 @@ const Tokens = () => {
             </h2>
             
             <form onSubmit={handleCreateTokens} className="space-y-6">
+                            <div className="space-y-3">
+                              <label className="input-label font-black text-xs uppercase tracking-widest text-primary">3. Allowed Subjects (Tombol di Login Siswa)</label>
+                              <div className="space-y-2 max-h-[120px] overflow-y-auto pr-2 border-b border-border pb-2">
+                                {availableSubjects.length > 0 ? (
+                                  availableSubjects.map(s => (
+                                    <button 
+                                      key={s} type="button" 
+                                      onClick={() => setAllowedSubjects(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}
+                                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border-2 transition-all ${
+                                        allowedSubjects.includes(s) 
+                                        ? 'border-primary bg-primary text-white font-bold' 
+                                        : 'border-border bg-background text-text-muted hover:border-primary/50'
+                                      }`}
+                                    >
+                                      {allowedSubjects.includes(s) ? <CheckSquare size={16} /> : <BookOpen size={16} />}
+                                      <span className="text-sm truncate">{s}</span>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="text-xs text-danger font-bold bg-danger/5 p-3 rounded-lg border border-dashed border-danger/30">
+                                    Please add questions to the Question Bank first.
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <button 
+                                  type="button" onClick={() => setAllowedSubjects(availableSubjects)}
+                                  className="text-[10px] font-black uppercase text-primary hover:underline"
+                                >Select All</button>
+                                <button 
+                                  type="button" onClick={() => setAllowedSubjects([])}
+                                  className="text-[10px] font-black uppercase text-text-muted hover:underline ml-auto"
+                                >Clear</button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <label className="input-label font-black text-xs uppercase tracking-widest text-secondary">4. Allowed Packages (Tombol di Login Siswa)</label>
+                              <div className="space-y-2 max-h-[120px] overflow-y-auto pr-2 border-b border-border pb-2">
+                                {availablePackages.length > 0 ? (
+                                  availablePackages.filter(p => p !== 'All').map(p => (
+                                    <button 
+                                      key={p} type="button" 
+                                      onClick={() => setAllowedPackages(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}
+                                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border-2 transition-all ${
+                                        allowedPackages.includes(p) 
+                                        ? 'border-secondary bg-secondary text-white font-bold' 
+                                        : 'border-border bg-background text-text-muted hover:border-secondary/50'
+                                      }`}
+                                    >
+                                      {allowedPackages.includes(p) ? <CheckSquare size={16} /> : <Layers size={16} />}
+                                      <span className="text-sm truncate">{p}</span>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="text-xs text-danger font-bold bg-danger/5 p-3 rounded-lg border border-dashed border-danger/30">
+                                    Please add questions to the Question Bank first.
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <button 
+                                  type="button" onClick={() => setAllowedPackages(availablePackages.filter(p => p !== 'All'))}
+                                  className="text-[10px] font-black uppercase text-secondary hover:underline"
+                                >Select All</button>
+                                <button 
+                                  type="button" onClick={() => setAllowedPackages([])}
+                                  className="text-[10px] font-black uppercase text-text-muted hover:underline ml-auto"
+                                >Clear</button>
+                              </div>
+                            </div>
               <div className="space-y-3">
                 <label className="input-label font-black text-xs uppercase tracking-widest text-primary">1. Select Subjects</label>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 border-b border-border pb-2">
@@ -276,6 +350,8 @@ const Tokens = () => {
                   />
                 </div>
                 <div className="input-group">
+                          allowed_subjects: allowedSubjects,
+                          allowed_packages: allowedPackages
                   <label className="input-label text-[10px]">Qs per Subject</label>
                   <input 
                     type="number" min="1" max="100"
@@ -286,6 +362,8 @@ const Tokens = () => {
                   />
                 </div>
               </div>
+                      setAllowedSubjects([]);
+                      setAllowedPackages([]);
 
               <button 
                 type="submit" 

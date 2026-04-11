@@ -69,7 +69,24 @@ const Exam = () => {
         }
         setExamState(activeState);
 
-        const allQs = await api.getQuestions();
+        let allQs: Question[] = [];
+        // Ambil soal dari paket jika token punya paket
+        if (token.package && token.package !== '') {
+          // Cari id paket berdasarkan nama
+          try {
+            const paketList = await api.getPaketSoalList();
+            const paket = paketList.find(p => p.name === token.package);
+            if (paket) {
+              allQs = await api.getQuestionsByPaket(paket.id);
+            } else {
+              allQs = await api.getQuestions();
+            }
+          } catch {
+            allQs = await api.getQuestions();
+          }
+        } else {
+          allQs = await api.getQuestions();
+        }
         const orderedQs = activeState.questionOrder.map(id => allQs.find(q => q.id === id)).filter(Boolean) as Question[];
         setQuestions(orderedQs);
     } catch (err) {
@@ -219,6 +236,10 @@ const Exam = () => {
         <div className="grid gap-2 sm:gap-3 max-w-4xl">
           {(examState.optionOrder[currentQ.id] || ['A', 'B', 'C', 'D']).map((opt) => {
             const isSelected = selectedAns === opt;
+            // OptionContent support
+            const optData = currentQ[`option_${opt.toLowerCase()}` as keyof Question] as any;
+            const text = typeof optData === 'object' && optData !== null ? optData.text : optData;
+            const image = typeof optData === 'object' && optData !== null ? optData.image : '';
             return (
               <button
                 key={opt}
@@ -233,7 +254,12 @@ const Exam = () => {
                   {opt}
                 </div>
                 <div className={`flex-1 font-medium transition-colors ${isSelected ? 'text-blue-900' : 'text-neutral-700'}`}>
-                  {currentQ[`option_${opt.toLowerCase()}` as keyof Question] as string}
+                  {text && <span>{text}</span>}
+                  {image && (
+                    <div className="mt-1">
+                      <img src={image} alt={`Option ${opt} image`} className="max-h-24 rounded object-contain border border-border" />
+                    </div>
+                  )}
                 </div>
               </button>
             );
@@ -439,7 +465,7 @@ const Exam = () => {
           {/* Question Footer Controls - Mobile Optimized */}
           <div className="bg-neutral-50 border-t border-neutral-200 p-2 sm:p-4 lg:p-6 flex flex-wrap justify-between items-center gap-2 sm:gap-4">
             <button
-              className="px-3 sm:px-6 lg:px-8 py-2 sm:py-3 rounded text-neutral-700 font-bold border-2 border-neutral-300 bg-white hover:bg-neutral-100 transition-colors disabled:opacity-50 text-xs sm:text-sm active:scale-95 transition-transform"
+              className="px-3 sm:px-6 lg:px-8 py-2 sm:py-3 rounded text-neutral-700 font-bold border-2 border-neutral-300 bg-white hover:bg-neutral-100 transition-colors disabled:opacity-50 text-xs sm:text-sm active:scale-95"
               onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
               disabled={currentIndex === 0}
             >
@@ -447,7 +473,7 @@ const Exam = () => {
             </button>
 
             <button
-              className={`px-3 sm:px-6 py-2 sm:py-3 rounded font-bold border-2 transition-colors flex items-center gap-1 sm:gap-2 text-xs sm:text-sm active:scale-95 transition-transform ${isDoubt
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded font-bold border-2 transition-colors flex items-center gap-1 sm:gap-2 text-xs sm:text-sm active:scale-95 ${isDoubt
                 ? 'border-yellow-500 bg-yellow-500 text-white'
                 : 'border-yellow-500 text-yellow-600 bg-yellow-50 hover:bg-yellow-100'
                 }`}
@@ -461,14 +487,14 @@ const Exam = () => {
 
             {currentIndex < questions.length - 1 ? (
               <button
-                className="px-3 sm:px-6 lg:px-8 py-2 sm:py-3 rounded text-white font-bold border-2 border-blue-600 bg-blue-500 hover:bg-blue-600 transition-colors text-xs sm:text-sm active:scale-95 transition-transform"
+                className="px-3 sm:px-6 lg:px-8 py-2 sm:py-3 rounded text-white font-bold border-2 border-blue-600 bg-blue-500 hover:bg-blue-600 transition-colors text-xs sm:text-sm active:scale-95"
                 onClick={() => setCurrentIndex(prev => Math.min(questions.length - 1, prev + 1))}
               >
                 Next →
               </button>
             ) : (
               <button
-                className="px-3 sm:px-6 lg:px-8 py-2 sm:py-3 rounded text-white font-bold border-2 border-green-600 bg-green-500 hover:bg-green-600 transition-colors text-xs sm:text-sm shadow-md animate-pulse active:scale-95 transition-transform"
+                className="px-3 sm:px-6 lg:px-8 py-2 sm:py-3 rounded text-white font-bold border-2 border-green-600 bg-green-500 hover:bg-green-600 transition-colors text-xs sm:text-sm shadow-md animate-pulse active:scale-95"
                 onClick={() => navigate('/review')}
               >
                 Selesai ✓

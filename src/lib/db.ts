@@ -1,3 +1,31 @@
+// Opsi pilihan ganda bisa berupa teks/gambar
+export type OptionContent = {
+  text?: string;
+  image?: string; // URL atau base64
+};
+
+// --- Materi Types ---
+export type Materi = {
+  id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+};
+
+// --- Paket Soal Types ---
+export type PaketSoal = {
+  id: string;
+  name: string;
+  subject?: string;
+  created_at?: string;
+  questions?: Question[];
+};
+
+export type PaketSoalQuestion = {
+  id: string;
+  paket_id: string;
+  question_id: string;
+};
 // src/lib/db.ts
 import { createClient } from '@supabase/supabase-js';
 
@@ -33,16 +61,42 @@ export type Question = {
   question: string;
   type: QuestionType;
   // Type: pilihan_ganda
-  option_a?: string;
-  option_b?: string;
-  option_c?: string;
-  option_d?: string;
+  option_a?: string | OptionContent;
+  option_b?: string | OptionContent;
+  option_c?: string | OptionContent;
+  option_d?: string | OptionContent;
   correct_answer?: 'A' | 'B' | 'C' | 'D';
   // Type: pilihan_ganda_kompleks & multiple_choice_multiple_answer
   statements?: Statement[]; // 3 statements for both
   image?: string; // Optional image URL or base64
   package?: string; // Question package group
+  materi_id?: string; // Relasi ke materi
+  materi?: Materi; // Optional: relasi materi (join)
 };
+// --- Materi CRUD ---
+export async function getMateriList() {
+  const { data, error } = await supabase.from('materi').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Materi[];
+}
+
+export async function addMateri(materi: Omit<Materi, 'id' | 'created_at'>) {
+  const { data, error } = await supabase.from('materi').insert([materi]).select();
+  if (error) throw error;
+  return data?.[0] as Materi;
+}
+
+export async function updateMateri(id: string, materi: Partial<Materi>) {
+  const { data, error } = await supabase.from('materi').update(materi).eq('id', id).select();
+  if (error) throw error;
+  return data?.[0] as Materi;
+}
+
+export async function deleteMateri(id: string) {
+  const { error } = await supabase.from('materi').delete().eq('id', id);
+  if (error) throw error;
+  return true;
+}
 
 export type ExamToken = {
   id: string;
@@ -53,6 +107,8 @@ export type ExamToken = {
   package?: string;
   active: boolean;
   resultsVisible?: boolean; // Admin dapat menampilkan/menyembunyikan hasil siswa
+  allowed_subjects?: string[]; // List mapel yang diizinkan untuk tombol login siswa
+  allowed_packages?: string[]; // List paket yang diizinkan untuk tombol login siswa
 };
 
 export type Answer = {
@@ -118,13 +174,18 @@ const mapQuestionFromDb = (q: any): Question => {
   const optionsArray = q.options || [];
 
   if (qType === 'pilihan_ganda') {
-    res.option_a = optionsArray[0] || '';
-    res.option_b = optionsArray[1] || '';
-    res.option_c = optionsArray[2] || '';
-    res.option_d = optionsArray[3] || '';
+    // Support opsi gambar: jika item adalah object, gunakan {text, image}, jika string, {text}
+    const parseOpt = (opt: any) => {
+      if (!opt) return '';
+      if (typeof opt === 'object' && (opt.text || opt.image)) return opt;
+      return { text: String(opt) };
+    };
+    res.option_a = parseOpt(optionsArray[0]);
+    res.option_b = parseOpt(optionsArray[1]);
+    res.option_c = parseOpt(optionsArray[2]);
+    res.option_d = parseOpt(optionsArray[3]);
     res.correct_answer = (q.answer || 'A') as any;
   } else if (qType === 'pilihan_ganda_kompleks') {
-    // For PK: answer is like "A,C" or "A, C" (letters of correct statements)
     const correctAnswers = (q.answer || '').toUpperCase().split(',').map((s: string) => s.trim());
     res.statements = optionsArray.map((opt: any, idx: number) => {
       const letter = String.fromCharCode(65 + idx);
@@ -133,17 +194,13 @@ const mapQuestionFromDb = (q: any): Question => {
       return { text, isCorrect };
     });
   } else if (qType === 'multiple_choice_multiple_answer') {
-    // For MCMA: answer is like "Sesuai,Tidak Sesuai,Sesuai" 
     const answerArray = (q.answer || '')
       .split(',')
       .map((a: string) => a.trim())
-      .filter(a => a); // Remove empty strings
-    
-    // Pad with defaults if needed
+      .filter(a => a);
     while (answerArray.length < optionsArray.length) {
       answerArray.push('Sesuai');
     }
-    
     res.statements = optionsArray.map((opt: any, idx: number) => {
       const text = typeof opt === 'string' ? opt : (opt?.statement || '');
       const correctAnswer = answerArray[idx] || 'Sesuai';
@@ -154,6 +211,44 @@ const mapQuestionFromDb = (q: any): Question => {
 };
 
 export const api = {
+  // --- Paket Soal ---
+  getPaketSoalList: async (): Promise<PaketSoal[]> => {
+    const { data, error } = await supabase.from('paket_soal').select('*').order('created_at', { ascending: false });
+    if (error) throw new Error(`Failed to fetch paket soal: ${error.message}`);
+    return data as PaketSoal[];
+  },
+  addPaketSoal: async (paket: { name: string; subject?: string }) => {
+    const { data, error } = await supabase.from('paket_soal').insert([paket]).select();
+    if (error) throw new Error(`Failed to add paket soal: ${error.message}`);
+    return data?.[0] as PaketSoal;
+  },
+  updatePaketSoal: async (paket: PaketSoal) => {
+    const { error } = await supabase.from('paket_soal').update({ name: paket.name, subject: paket.subject }).eq('id', paket.id);
+    if (error) throw new Error(`Failed to update paket soal: ${error.message}`);
+  },
+  deletePaketSoal: async (id: string) => {
+    const { error } = await supabase.from('paket_soal').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete paket soal: ${error.message}`);
+  },
+
+  // --- Relasi Soal-Paket ---
+  getQuestionsByPaket: async (paket_id: string): Promise<Question[]> => {
+    // Join paket_soal_questions -> questions
+    const { data, error } = await supabase
+      .from('paket_soal_questions')
+      .select('question_id, questions(*)')
+      .eq('paket_id', paket_id);
+    if (error) throw new Error(`Failed to fetch questions for paket: ${error.message}`);
+    return (data || []).map((row: any) => mapQuestionFromDb(row.questions));
+  },
+  addQuestionToPaket: async (paket_id: string, question_id: string) => {
+    const { error } = await supabase.from('paket_soal_questions').insert([{ paket_id, question_id }]);
+    if (error) throw new Error(`Failed to add question to paket: ${error.message}`);
+  },
+  removeQuestionFromPaket: async (paket_id: string, question_id: string) => {
+    const { error } = await supabase.from('paket_soal_questions').delete().eq('paket_id', paket_id).eq('question_id', question_id);
+    if (error) throw new Error(`Failed to remove question from paket: ${error.message}`);
+  },
   // --- Students ---
   getStudents: async () => {
     const { data, error } = await supabase.from('students').select('*');

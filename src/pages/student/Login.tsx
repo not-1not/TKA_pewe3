@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../lib/db';
@@ -9,11 +9,47 @@ const StudentLogin = () => {
   const [password, setPassword] = useState('');
   const [tokenStr, setTokenStr] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>(['Matematika', 'Bahasa Indonesia']);
+  const [availablePackages, setAvailablePackages] = useState<string[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState('');
   const [error, setError] = useState('');
   const { loginStudent } = useAuth();
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(false);
+
+  // Ambil allowed_subjects dan allowed_packages dari token jika token diinput
+  useEffect(() => {
+    const fetchTokenConfig = async () => {
+      if (!tokenStr.trim()) {
+        setAvailableSubjects(['Matematika', 'Bahasa Indonesia']);
+        setAvailablePackages([]);
+        return;
+      }
+      try {
+        const examToken = await api.getTokenByStr(tokenStr.trim());
+        if (examToken) {
+          setAvailableSubjects(
+            Array.isArray(examToken.allowed_subjects) && examToken.allowed_subjects.length > 0
+              ? examToken.allowed_subjects
+              : ['Matematika', 'Bahasa Indonesia']
+          );
+          setAvailablePackages(
+            Array.isArray(examToken.allowed_packages) && examToken.allowed_packages.length > 0
+              ? examToken.allowed_packages
+              : []
+          );
+        } else {
+          setAvailableSubjects(['Matematika', 'Bahasa Indonesia']);
+          setAvailablePackages([]);
+        }
+      } catch {
+        setAvailableSubjects(['Matematika', 'Bahasa Indonesia']);
+        setAvailablePackages([]);
+      }
+    };
+    fetchTokenConfig();
+  }, [tokenStr]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +57,10 @@ const StudentLogin = () => {
 
     if (!username.trim() || !tokenStr.trim() || !selectedSubject) {
       setError('Please fill in all required fields and select a subject!');
+      return;
+    }
+    if (availablePackages.length > 0 && !selectedPackage) {
+      setError('Pilih paket soal yang tersedia!');
       return;
     }
 
@@ -45,12 +85,19 @@ const StudentLogin = () => {
           return;
         }
 
-        if (examToken.subject !== selectedSubject) {
-          setError(`This token is for ${examToken.subject}, but you selected ${selectedSubject}.`);
+
+        // Validasi allowed_subjects dan allowed_packages
+        if (examToken.allowed_subjects && examToken.allowed_subjects.length > 0 && !examToken.allowed_subjects.includes(selectedSubject)) {
+          setError('Mapel tidak diizinkan untuk token ini.');
+          return;
+        }
+        if (examToken.allowed_packages && examToken.allowed_packages.length > 0 && !examToken.allowed_packages.includes(selectedPackage)) {
+          setError('Paket tidak diizinkan untuk token ini.');
           return;
         }
 
-        loginStudent(student, examToken.id);
+        // Simpan info paket jika ada
+        loginStudent(student, examToken.id, { selectedSubject, selectedPackage });
         navigate('/instructions');
     } catch (err) {
         setError('System error during login. Please try again.');
@@ -103,10 +150,11 @@ const StudentLogin = () => {
             />
           </div>
 
+
           <div className="input-group">
             <label className="input-label text-center block">Pilih Mata Pelajaran</label>
-            <div className="flex gap-3 justify-center">
-              {['Matematika', 'Bahasa Indonesia'].map((subject) => (
+            <div className="flex gap-3 justify-center flex-wrap">
+              {availableSubjects.map((subject) => (
                 <button
                   key={subject}
                   type="button"
@@ -121,6 +169,27 @@ const StudentLogin = () => {
               ))}
             </div>
           </div>
+
+          {availablePackages.length > 0 && (
+            <div className="input-group">
+              <label className="input-label text-center block">Pilih Paket Soal</label>
+              <div className="flex gap-3 justify-center flex-wrap">
+                {availablePackages.map((pkg) => (
+                  <button
+                    key={pkg}
+                    type="button"
+                    onClick={() => setSelectedPackage(pkg)}
+                    className={`flex-1 py-3 px-4 rounded-xl font-bold text-base transition-all border-2 ${selectedPackage === pkg
+                        ? 'bg-secondary text-white border-secondary shadow-[0_4px_0_theme(colors.secondary.hover)] active:translate-y-[4px] active:shadow-none'
+                        : 'bg-surface text-text-main border-border hover:border-secondary hover:text-secondary'
+                      }`}
+                  >
+                    {pkg}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="input-group">
             <label className="input-label" htmlFor="token">Exam Token</label>

@@ -7,6 +7,7 @@ import { AnswerAnalysis } from '../../components/AnswerAnalysis';
 const AdminResults = () => {
   const [results, setResults] = useState<Result[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [tokens, setTokens] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingResult, setEditingResult] = useState<Result | null>(null);
@@ -17,10 +18,14 @@ const AdminResults = () => {
   const fetchResults = async () => {
     setIsLoading(true);
     try {
-      const data = await api.getResults();
-      const allQuestions = await api.getQuestions();
+      const [data, allQuestions, allTokens] = await Promise.all([
+        api.getResults(),
+        api.getQuestions(),
+        api.getTokens()
+      ]);
       setResults(data);
       setQuestions(allQuestions);
+      setTokens(allTokens);
     } catch (err) {
       console.error(err);
     } finally {
@@ -35,15 +40,29 @@ const AdminResults = () => {
   const handleExportCSV = () => {
     if (results.length === 0) return;
 
-    const headers = ['Timestamp', 'Student Name', 'School', 'Correct', 'Wrong', 'Score'];
-    const rows = results.map(r => [
-      new Date(r.timestamp).toLocaleString(),
-      r.studentName,
-      r.school,
-      r.correct,
-      r.wrong,
-      r.score
-    ]);
+    const headers = ['Timestamp', 'Student Name', 'School', 'Mapel', 'Token', 'Correct', 'Wrong', 'Score'];
+    const rows = results.map(r => {
+      // Cari token yang digunakan siswa ini (berdasarkan result.tokenId atau result.token jika ada)
+      let tokenStr = '';
+      let mapel = '';
+      if (r.tokenId) {
+        const tok = tokens.find(t => t.id === r.tokenId);
+        tokenStr = tok?.token || '';
+        mapel = tok?.subject || '';
+      } else if (r.token) {
+        tokenStr = r.token;
+      }
+      return [
+        new Date(r.timestamp).toLocaleString(),
+        r.studentName,
+        r.school,
+        mapel,
+        tokenStr,
+        r.correct,
+        r.wrong,
+        r.score
+      ];
+    });
 
     const csvContent = [
       headers.join(','),
@@ -145,6 +164,8 @@ const AdminResults = () => {
                     <th className="p-3 sm:p-4 font-bold">Date / Time</th>
                     <th className="p-3 sm:p-4 font-bold">Student Name</th>
                     <th className="p-3 sm:p-4 font-bold">School</th>
+                    <th className="p-3 sm:p-4 font-bold">Mapel</th>
+                    <th className="p-3 sm:p-4 font-bold">Token</th>
                     <th className="p-3 sm:p-4 font-bold text-center">Correct</th>
                     <th className="p-3 sm:p-4 font-bold text-center">Wrong</th>
                     <th className="p-3 sm:p-4 font-bold text-center text-primary">Score</th>
@@ -153,46 +174,59 @@ const AdminResults = () => {
                 </thead>
                 <tbody>
                   {filteredResults.length > 0 ? (
-                    filteredResults.map(r => (
-                      <tr key={r.id} className="border-b border-border hover:bg-background/50 transition-colors">
-                        <td className="p-3 sm:p-4 text-xs sm:text-sm">{new Date(r.timestamp).toLocaleString()}</td>
-                        <td className="p-3 sm:p-4 font-bold text-text-main text-sm sm:text-base">{r.studentName}</td>
-                        <td className="p-3 sm:p-4 text-text-muted text-xs sm:text-sm">{r.school}</td>
-                        <td className="p-3 sm:p-4 text-center font-bold text-secondary text-sm sm:text-base">{r.correct}</td>
-                        <td className="p-3 sm:p-4 text-center font-bold text-danger text-sm sm:text-base">{r.wrong}</td>
-                        <td className="p-3 sm:p-4 text-center font-black text-xl text-primary">{r.score}%</td>
-                        <td className="p-3 sm:p-4 text-right">
-                          <div className="flex justify-end gap-1 sm:gap-2">
-                            {r.answerDetails && r.answerDetails.length > 0 && (
+                    filteredResults.map(r => {
+                      let tokenStr = '';
+                      let mapel = '';
+                      if (r.tokenId) {
+                        const tok = tokens.find(t => t.id === r.tokenId);
+                        tokenStr = tok?.token || '';
+                        mapel = tok?.subject || '';
+                      } else if (r.token) {
+                        tokenStr = r.token;
+                      }
+                      return (
+                        <tr key={r.id} className="border-b border-border hover:bg-background/50 transition-colors">
+                          <td className="p-3 sm:p-4 text-xs sm:text-sm">{new Date(r.timestamp).toLocaleString()}</td>
+                          <td className="p-3 sm:p-4 font-bold text-text-main text-sm sm:text-base">{r.studentName}</td>
+                          <td className="p-3 sm:p-4 text-text-muted text-xs sm:text-sm">{r.school}</td>
+                          <td className="p-3 sm:p-4 text-xs sm:text-sm">{mapel}</td>
+                          <td className="p-3 sm:p-4 text-xs sm:text-sm">{tokenStr}</td>
+                          <td className="p-3 sm:p-4 text-center font-bold text-secondary text-sm sm:text-base">{r.correct}</td>
+                          <td className="p-3 sm:p-4 text-center font-bold text-danger text-sm sm:text-base">{r.wrong}</td>
+                          <td className="p-3 sm:p-4 text-center font-black text-xl text-primary">{r.score}%</td>
+                          <td className="p-3 sm:p-4 text-right">
+                            <div className="flex justify-end gap-1 sm:gap-2">
+                              {r.answerDetails && r.answerDetails.length > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedResult(r);
+                                    setShowAnalysis(true);
+                                  }}
+                                  className="p-1.5 sm:p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                  title="View Answer Analysis"
+                                >
+                                  <BarChart3 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                </button>
+                              )}
                               <button
-                                onClick={() => {
-                                  setSelectedResult(r);
-                                  setShowAnalysis(true);
-                                }}
-                                className="p-1.5 sm:p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                                title="View Answer Analysis"
+                                onClick={() => handleEdit(r)}
+                                className="p-1.5 sm:p-2 text-text-muted hover:text-warning hover:bg-warning/10 rounded-lg transition-colors"
+                                title="Edit Result"
                               >
-                                <BarChart3 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                <Edit3 size={16} className="sm:w-[18px] sm:h-[18px]" />
                               </button>
-                            )}
-                            <button
-                              onClick={() => handleEdit(r)}
-                              className="p-1.5 sm:p-2 text-text-muted hover:text-warning hover:bg-warning/10 rounded-lg transition-colors"
-                              title="Edit Result"
-                            >
-                              <Edit3 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(r.id)}
-                              className="p-1.5 sm:p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
-                              title="Delete Result"
-                            >
-                              <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              <button
+                                onClick={() => handleDelete(r.id)}
+                                className="p-1.5 sm:p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
+                                title="Delete Result"
+                              >
+                                <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={7} className="p-8 text-center text-text-muted">
