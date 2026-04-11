@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(() => ({
   plugins: [react()],
-  base: '/TKA_pewe3/',
+  base: process.env.VERCEL ? '/' : '/TKA_pewe3/',
   build: {
     outDir: 'docs',
     rollupOptions: {
