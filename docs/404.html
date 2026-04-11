@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redirecting...</title>
+  <script>
+    /**
+     * GitHub Pages SPA Redirect Fix
+     * 
+     * GitHub Pages doesn't support client-side routing for SPAs (Single Page Applications).
+     * When a user navigates directly to a route like /TKA_Toni/admin/results,
+     * GitHub Pages looks for a file at that path and returns 404.
+     * 
+     * This script intercepts the 404 error and redirects to:
+     *   /TKA_Toni/?/admin/results
+     * 
+     * The '?/' prefix is a convention that your SPA's index.html can detect and use
+     * to restore the original route programmatically.
+     * 
+     * @param {number} basePathSegments - Number of path segments in the repository name
+     *                                    e.g., 1 for /TKA_Toni/, 2 for /org/repo/
+     */
+    (function () {
+      'use strict';
+
+      // Configuration: Adjust for your repository structure
+      // 1 for project pages (username.github.io/repo/), 2 for organization pages, etc.
+      const BASE_PATH_SEGMENTS = 1;
+
+      /**
+       * Encodes ampersands to ~and~ for URL-safe storage in GitHub Pages redirect
+       * @param {string} str - String to encode
+       * @returns {string} Encoded string
+       */
+      function encodeReservedChars(str) {
+        return str.replace(/&/g, '~and~');
+      }
+
+      /**
+       * Builds the redirect URL for GitHub Pages SPA routing
+       * @param {Location} location - The window.location object
+       * @returns {string} The constructed redirect URL
+       */
+      function buildRedirectUrl(location) {
+        const {
+          protocol,
+          host,
+          pathname,
+          search,
+          hash
+        } = location;
+
+        // Split pathname into segments and extract the base path
+        const pathSegments = pathname.split('/').filter(Boolean);
+        const basePath = '/' + pathSegments.slice(0, BASE_PATH_SEGMENTS).join('/');
+
+        // Extract the route path (everything after the base path)
+        const routePath = pathSegments.slice(BASE_PATH_SEGMENTS).join('/');
+        const encodedRoutePath = encodeReservedChars(routePath);
+
+        // Build the new URL using the /?/ convention
+        // Format: {protocol}//{host}/{basePath}/?/{routePath}
+        const redirectUrl =
+          protocol + '//' + host +
+          basePath + '/?/' +
+          encodedRoutePath +
+          encodeReservedChars(search) +
+          hash;
+
+        return redirectUrl;
+      }
+
+      // Execute redirect
+      const redirectUrl = buildRedirectUrl(window.location);
+      window.location.replace(redirectUrl);
+    })();
+  </script>
+</head>
+
+<body></body>
+
+</html>
