@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from './Dashboard';
 import { api, ExamToken } from '../../lib/db';
-import { Plus, Trash2, KeyRound, Copy, CheckSquare, Square, Zap, ZapOff, BookOpen, Layers, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, KeyRound, Copy, CheckSquare, Square, Zap, ZapOff, BookOpen, Layers, Eye, EyeOff, Edit3, Check, X, Save } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
 const Tokens = () => {
@@ -80,7 +80,9 @@ const Tokens = () => {
             questionCount: Math.min(qCount, subjectQs.length || qCount),
             subject: subject,
             package: selectedPackage === 'All' ? '' : selectedPackage,
-            active: true
+            active: true,
+            allowed_subjects: allowedSubjects.length > 0 ? allowedSubjects : undefined,
+            allowed_packages: allowedPackages.length > 0 ? allowedPackages : undefined
           });
         });
 
@@ -91,6 +93,8 @@ const Tokens = () => {
         await api.setTokens(updated);
         await fetchData();
         setSelectedSubjects([]);
+        setAllowedSubjects([]);
+        setAllowedPackages([]);
         alert(`Successfully generated ${newTokens.length} tokens.`);
     } catch (err: any) {
         console.error("Token creation error:", err);
@@ -193,9 +197,39 @@ const Tokens = () => {
       prev.includes(subj) ? prev.filter(s => s !== subj) : [...prev, subj]
     );
   };
-  
-  const handleCopy = (t: string) => {
+
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingToken, setEditingToken] = useState<ExamToken | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  const handleCopy = (id: string, t: string) => {
     navigator.clipboard.writeText(t);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleEditToken = (token: ExamToken) => {
+    setEditingToken({ ...token });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingToken) return;
+    setIsLoading(true);
+    try {
+      const currentBatch = await api.getTokens();
+      const updated = currentBatch.map(tok =>
+        tok.id === editingToken.id ? editingToken : tok
+      );
+      await api.setTokens(updated);
+      await fetchData();
+      setShowEditModal(false);
+      setEditingToken(null);
+    } catch (err: any) {
+      alert('Failed to update token: ' + (err.message || String(err)));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -350,8 +384,6 @@ const Tokens = () => {
                   />
                 </div>
                 <div className="input-group">
-                          allowed_subjects: allowedSubjects,
-                          allowed_packages: allowedPackages
                   <label className="input-label text-[10px]">Qs per Subject</label>
                   <input 
                     type="number" min="1" max="100"
@@ -362,8 +394,7 @@ const Tokens = () => {
                   />
                 </div>
               </div>
-                      setAllowedSubjects([]);
-                      setAllowedPackages([]);
+
 
               <button 
                 type="submit" 
@@ -438,12 +469,18 @@ const Tokens = () => {
                          <div className="flex items-center gap-3">
                             <span 
                               className="font-black tracking-[0.1em] text-xl text-text-main cursor-pointer hover:text-primary transition-colors truncate"
-                              onClick={() => handleCopy(t.token)}
+                              onClick={() => handleCopy(t.id, t.token)}
                               title="Click to copy"
                             >
                               {t.token}
                             </span>
-                            <Copy size={14} className="text-text-muted" />
+                            <button
+                              onClick={() => handleCopy(t.id, t.token)}
+                              className={`p-1 rounded transition-all ${copiedId === t.id ? 'text-secondary bg-secondary/10' : 'text-text-muted hover:text-primary hover:bg-primary/10'}`}
+                              title={copiedId === t.id ? 'Copied!' : 'Copy token'}
+                            >
+                              {copiedId === t.id ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
                          </div>
                       </div>
 
@@ -478,6 +515,14 @@ const Tokens = () => {
                       {t.resultsVisible !== false ? <Eye size={14} className="inline mr-1" /> : <EyeOff size={14} className="inline mr-1" />}
                       {t.resultsVisible !== false ? 'Show' : 'Hide'}
                     </button>
+
+                    <button 
+                      onClick={() => handleEditToken(t)}
+                      className="btn text-[10px] font-black uppercase py-2 px-4 shadow-sm border-2 border-primary/20 text-primary hover:bg-primary hover:text-white"
+                      title="Edit token settings"
+                    >
+                      <Edit3 size={14} className="inline mr-1" /> Edit
+                    </button>
                   </div>
                 ))
               ) : (
@@ -491,6 +536,118 @@ const Tokens = () => {
           </div>
         </div>
       </div>
+      {/* Edit Token Modal */}
+      {showEditModal && editingToken && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl p-6 border-2 border-primary animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Edit3 size={20} className="text-primary" /> Edit Token
+              </h2>
+              <button onClick={() => setShowEditModal(false)} className="text-text-muted hover:text-danger transition-colors p-1">
+                <X size={22} />
+              </button>
+            </div>
+
+            <div className="bg-background/50 p-3 rounded-lg border border-border mb-4">
+              <p className="text-xs font-bold text-text-muted mb-1 uppercase tracking-wider">Token</p>
+              <p className="font-black text-xl tracking-[0.1em] text-primary">{editingToken.token}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="input-group">
+                <label className="input-label text-xs" htmlFor="edit-subject">Subject</label>
+                <select
+                  id="edit-subject"
+                  className="input-field"
+                  value={editingToken.subject || ''}
+                  onChange={e => setEditingToken({ ...editingToken, subject: e.target.value })}
+                  aria-label="Edit token subject"
+                >
+                  <option value="">All / Mixed</option>
+                  {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label text-xs" htmlFor="edit-package">Package</label>
+                <select
+                  id="edit-package"
+                  className="input-field"
+                  value={editingToken.package || ''}
+                  onChange={e => setEditingToken({ ...editingToken, package: e.target.value })}
+                  aria-label="Edit token package"
+                >
+                  <option value="">All Packages</option>
+                  {availablePackages.filter(p => p !== 'All').map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="input-group">
+                  <label className="input-label text-xs" htmlFor="edit-duration">Duration (Min)</label>
+                  <input
+                    id="edit-duration"
+                    type="number" min="5" max="180" step="5"
+                    className="input-field text-center"
+                    value={editingToken.durationMinutes}
+                    onChange={e => setEditingToken({ ...editingToken, durationMinutes: parseInt(e.target.value) || 60 })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label className="input-label text-xs" htmlFor="edit-qcount">Question Count</label>
+                  <input
+                    id="edit-qcount"
+                    type="number" min="1" max="100"
+                    className="input-field text-center"
+                    value={editingToken.questionCount}
+                    onChange={e => setEditingToken({ ...editingToken, questionCount: parseInt(e.target.value) || 25 })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-background border border-border">
+                <label className="flex items-center gap-2 cursor-pointer flex-1">
+                  <input
+                    type="checkbox"
+                    checked={editingToken.active}
+                    onChange={e => setEditingToken({ ...editingToken, active: e.target.checked })}
+                    className="w-4 h-4 accent-secondary"
+                  />
+                  <span className="text-sm font-bold">Active</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer flex-1">
+                  <input
+                    type="checkbox"
+                    checked={editingToken.resultsVisible || false}
+                    onChange={e => setEditingToken({ ...editingToken, resultsVisible: e.target.checked })}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <span className="text-sm font-bold">Show Results</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="btn btn-outline flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                className="btn btn-primary flex-1 gap-2"
+                disabled={isLoading}
+              >
+                <Save size={16} /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 };
