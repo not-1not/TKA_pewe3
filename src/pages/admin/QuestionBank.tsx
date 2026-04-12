@@ -9,37 +9,37 @@ import { AnimatePresence } from 'framer-motion';
 
 
 const QuestionBank = () => {
-    // Tambah Paket Soal
-    const handleAddPaket = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!paketForm.name) return alert('Nama paket wajib diisi');
-      setPaketLoading(true);
-      try {
-        await api.addPaketSoal(paketForm);
-        setPaketForm({ name: '', subject: '' });
-        setShowPaketForm(false);
-        await fetchPaketList();
-      } catch (err: any) {
-        alert('Gagal menambah paket: ' + (err?.message || err));
-      } finally {
-        setPaketLoading(false);
-      }
-    };
+  // Tambah Paket Soal
+  const handleAddPaket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paketForm.name) return alert('Nama paket wajib diisi');
+    setPaketLoading(true);
+    try {
+      await api.addPaketSoal(paketForm);
+      setPaketForm({ name: '', subject: '' });
+      setShowPaketForm(false);
+      await fetchPaketList();
+    } catch (err: any) {
+      alert('Gagal menambah paket: ' + (err?.message || err));
+    } finally {
+      setPaketLoading(false);
+    }
+  };
 
-    // Hapus Paket Soal
-    const handleDeletePaket = async (id: string) => {
-      if (!window.confirm('Hapus paket soal ini beserta relasinya?')) return;
-      setPaketLoading(true);
-      try {
-        await api.deletePaketSoal(id);
-        if (selectedPaketId === id) setSelectedPaketId(null);
-        await fetchPaketList();
-      } catch (err: any) {
-        alert('Gagal menghapus paket: ' + (err?.message || err));
-      } finally {
-        setPaketLoading(false);
-      }
-    };
+  // Hapus Paket Soal
+  const handleDeletePaket = async (id: string) => {
+    if (!window.confirm('Hapus paket soal ini beserta relasinya?')) return;
+    setPaketLoading(true);
+    try {
+      await api.deletePaketSoal(id);
+      if (selectedPaketId === id) setSelectedPaketId(null);
+      await fetchPaketList();
+    } catch (err: any) {
+      alert('Gagal menghapus paket: ' + (err?.message || err));
+    } finally {
+      setPaketLoading(false);
+    }
+  };
   // Paket Soal State
   const [paketList, setPaketList] = useState<PaketSoal[]>([]);
   const [selectedPaketId, setSelectedPaketId] = useState<string | null>(null);
@@ -87,8 +87,8 @@ const QuestionBank = () => {
   const [tempPackages, setTempPackages] = useState<string[]>([]);
   const [tempSubjects, setTempSubjects] = useState<string[]>([]);
   const [newPackageName, setNewPackageName] = useState('');
-  const [tableSortField, setTableSortField] = useState<'package'|'subject'|'question'|'type'|'none'>('none');
-  const [tableSortDir, setTableSortDir] = useState<'asc'|'desc'>('asc');
+  const [tableSortField, setTableSortField] = useState<'package' | 'subject' | 'question' | 'type' | 'none'>('none');
+  const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('asc');
   const [headerPackageFilter, setHeaderPackageFilter] = useState('All');
   const [headerSubjectFilter, setHeaderSubjectFilter] = useState('All');
   const [headerQuestionSearch, setHeaderQuestionSearch] = useState('');
@@ -180,7 +180,7 @@ const QuestionBank = () => {
   const filteredQuestions = (selectedPaketId ? paketQuestions : questions)
     .filter(q => (effectiveSubjectFilter === 'All' || q.subject === effectiveSubjectFilter))
     .filter(q => (effectivePackageFilter === 'All' || q.package === effectivePackageFilter))
-    .filter(q => (effectiveSearch === '' || 
+    .filter(q => (effectiveSearch === '' ||
       q.question.toLowerCase().includes(effectiveSearch) ||
       (q.package || '').toLowerCase().includes(effectiveSearch) ||
       q.subject.toLowerCase().includes(effectiveSearch)
@@ -198,7 +198,7 @@ const QuestionBank = () => {
       return cmp;
     });
 
-  const toggleTableSort = (field: 'package'|'subject'|'question'|'type') => {
+  const toggleTableSort = (field: 'package' | 'subject' | 'question' | 'type') => {
     if (tableSortField === field) {
       setTableSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -226,7 +226,7 @@ const QuestionBank = () => {
 
     if (formData.type === 'pilihan_ganda') {
       const opts = [formData.option_a, formData.option_b, formData.option_c, formData.option_d];
-      if (opts.some(opt => !opt || (!opt.text && !opt.image))) return alert("All options (A-D) must have text or image for Pilihan Ganda");
+      if (opts.some(opt => !opt || (typeof opt === 'string' ? !opt : (!opt.text && !opt.image)))) return alert("All options (A-D) must have text or image for Pilihan Ganda");
       if (!formData.correct_answer) return alert("Correct answer is required for Pilihan Ganda");
     } else {
       const statements = formData.statements || [];
@@ -329,7 +329,7 @@ const QuestionBank = () => {
       const lines = bulkText.split('\n').filter(l => l.trim());
       const newQuestions: Question[] = lines.map(line => {
         const parts = line.split(/[\t|,]/).map(p => p.trim().replace(/^"|"$/g, ''));
-        
+
         // Parse base columns (same as table display)
         const pkg = parts[0] || 'Default';
         const subj = parts[1] || 'Umum';
@@ -725,41 +725,37 @@ const QuestionBank = () => {
   return (
     <AdminLayout>
       {/* --- Paket Soal Section --- */}
-      <div style={{ marginBottom: 32, background: '#f8fafc', padding: 16, borderRadius: 8 }}>
-        <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 8 }}>Paket Soal</h2>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button onClick={() => setShowPaketForm(v => !v)} style={{ padding: '4px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, fontWeight: 500 }}>
+      <div className="mb-8 bg-[#f8fafc] p-4 rounded-lg">
+        <h2 className="font-semibold text-xl mb-2">Paket Soal</h2>
+        <div className="flex gap-4 items-center flex-wrap">
+          <button onClick={() => setShowPaketForm(v => !v)} className="py-1 px-3 bg-[#2563eb] text-white border-none rounded font-medium">
             + Paket Baru
           </button>
           {paketList.map(paket => (
-            <span key={paket.id} style={{
-              padding: '4px 12px',
-              background: selectedPaketId === paket.id ? '#2563eb' : '#e0e7ef',
-              color: selectedPaketId === paket.id ? 'white' : '#222',
-              borderRadius: 4,
-              marginRight: 8,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4
-            }}
+            <span
+              key={paket.id}
+              className={`py-1 px-3 rounded mr-2 cursor-pointer inline-flex items-center gap-1 ${
+                selectedPaketId === paket.id
+                  ? 'bg-[#2563eb] text-white'
+                  : 'bg-[#e0e7ef] text-[#222]'
+              }`}
               onClick={() => setSelectedPaketId(paket.id)}
             >
               {paket.name}
-              <button onClick={e => { e.stopPropagation(); handleDeletePaket(paket.id); }} style={{ background: 'none', border: 'none', color: 'red', marginLeft: 4, cursor: 'pointer' }} title="Hapus Paket">
+              <button onClick={e => { e.stopPropagation(); handleDeletePaket(paket.id); }} className="bg-transparent border-none text-danger ml-1 cursor-pointer" title="Hapus Paket">
                 <Trash2 size={14} />
               </button>
             </span>
           ))}
         </div>
         {showPaketForm && (
-          <form onSubmit={handleAddPaket} style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <form onSubmit={handleAddPaket} className="mt-3 flex gap-2 items-center">
             <input
               type="text"
               placeholder="Nama Paket"
               value={paketForm.name}
               onChange={e => setPaketForm(f => ({ ...f, name: e.target.value }))}
-              style={{ padding: 4, borderRadius: 4, border: '1px solid #ccc' }}
+              className="p-1 rounded border border-[#ccc]"
               required
             />
             <input
@@ -767,12 +763,12 @@ const QuestionBank = () => {
               placeholder="Mapel (opsional)"
               value={paketForm.subject}
               onChange={e => setPaketForm(f => ({ ...f, subject: e.target.value }))}
-              style={{ padding: 4, borderRadius: 4, border: '1px solid #ccc' }}
+              className="p-1 rounded border border-[#ccc]"
             />
-            <button type="submit" style={{ padding: '4px 12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: 4, fontWeight: 500 }} disabled={paketLoading}>
+            <button type="submit" className="py-1 px-3 bg-[#22c55e] text-white border-none rounded font-medium" disabled={paketLoading}>
               Simpan
             </button>
-            <button type="button" onClick={() => setShowPaketForm(false)} style={{ padding: '4px 12px', background: '#e0e7ef', color: '#222', border: 'none', borderRadius: 4, fontWeight: 500 }}>
+            <button type="button" onClick={() => setShowPaketForm(false)} className="py-1 px-3 bg-[#e0e7ef] text-[#222] border-none rounded font-medium">
               Batal
             </button>
           </form>
@@ -789,7 +785,7 @@ const QuestionBank = () => {
           <button onClick={() => setShowBulkAdd(true)} className="btn btn-outline border-primary text-primary hover:bg-primary/5 shadow-sm flex-1 md:flex-none">
             <Upload size={20} /> Bulk Add
           </button>
-          <button 
+          <button
             onClick={handleDownloadPackage}
             disabled={filteredQuestions.length === 0}
             className="btn btn-outline border-secondary text-secondary hover:bg-secondary/5 shadow-sm flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed text-xs"
@@ -797,7 +793,7 @@ const QuestionBank = () => {
           >
             <Upload size={20} className="rotate-180" /> TXT
           </button>
-          <button 
+          <button
             onClick={handleDownloadCSV}
             disabled={filteredQuestions.length === 0}
             className="btn btn-outline border-accent text-accent hover:bg-accent/5 shadow-sm flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed text-xs"
@@ -1241,13 +1237,13 @@ const QuestionBank = () => {
                 <th></th>
                 <th></th>
                 <th className="p-2">
-                  <select value={headerPackageFilter} onChange={e => setHeaderPackageFilter(e.target.value)} className="input-field w-full text-xs"> 
+                  <select value={headerPackageFilter} onChange={e => setHeaderPackageFilter(e.target.value)} className="input-field w-full text-xs" aria-label="Filter by package">
                     <option value="All">All</option>
                     {allUniquePackages.map(pkg => <option key={pkg} value={pkg}>{pkg}</option>)}
                   </select>
                 </th>
                 <th className="p-2">
-                  <select value={headerSubjectFilter} onChange={e => setHeaderSubjectFilter(e.target.value)} className="input-field w-full text-xs">
+                  <select value={headerSubjectFilter} onChange={e => setHeaderSubjectFilter(e.target.value)} className="input-field w-full text-xs" aria-label="Filter by subject">
                     <option value="All">All</option>
                     {allUniqueSubjects.map(subj => <option key={subj} value={subj}>{subj}</option>)}
                   </select>
@@ -1290,8 +1286,8 @@ const QuestionBank = () => {
                       </select>
                       {selectedPaketId && (
                         paketQuestions.some(pq => pq.id === q.id)
-                          ? <button onClick={() => handleRemoveQuestionFromPaket(q.id)} title="Hapus dari paket" style={{marginLeft: 8, color: 'red', border: 'none', background: 'none', cursor: 'pointer'}}><Trash2 size={16} /></button>
-                          : <button onClick={() => handleAddQuestionToPaket(q.id)} title="Tambah ke paket" style={{marginLeft: 8, color: 'green', border: 'none', background: 'none', cursor: 'pointer'}}><Plus size={16} /></button>
+                          ? <button onClick={() => handleRemoveQuestionFromPaket(q.id)} title="Hapus dari paket" className="ml-2 text-danger border-none bg-transparent cursor-pointer"><Trash2 size={16} /></button>
+                          : <button onClick={() => handleAddQuestionToPaket(q.id)} title="Tambah ke paket" className="ml-2 text-secondary border-none bg-transparent cursor-pointer"><Plus size={16} /></button>
                       )}
                     </td>
                     <td className="p-4">
@@ -1367,8 +1363,8 @@ const QuestionBank = () => {
                 <strong>Base format:</strong> package | subject | question | type | [type-specific fields] | image
               </span>
               <span className="block text-xs mt-2 text-text-muted">
-                <strong>PG (Pilihan Ganda):</strong> package | subject | question | PG | optA (teks||url_gambar) | optB (teks||url_gambar) | optC (teks||url_gambar) | optD (teks||url_gambar) | answer(A/B/C/D) | [image]<br/>
-                <strong>PK (Pilihan Ganda Kompleks):</strong> package | subject | question | PK | s1_text | s1(TRUE/FALSE) | s2_text | s2(TRUE/FALSE) | s3_text | s3(TRUE/FALSE) | [image]<br/>
+                <strong>PG (Pilihan Ganda):</strong> package | subject | question | PG | optA (teks||url_gambar) | optB (teks||url_gambar) | optC (teks||url_gambar) | optD (teks||url_gambar) | answer(A/B/C/D) | [image]<br />
+                <strong>PK (Pilihan Ganda Kompleks):</strong> package | subject | question | PK | s1_text | s1(TRUE/FALSE) | s2_text | s2(TRUE/FALSE) | s3_text | s3(TRUE/FALSE) | [image]<br />
                 <strong>MCMA (Sesuai/Tidak Sesuai):</strong> package | subject | question | MCMA | s1_text | s1(S/T) | s2_text | s2(S/T) | s3_text | s3(S/T) | [image]
               </span>
             </p>

@@ -34,3 +34,6 @@ out/
 *.sw?
 *.swp
 *.swo
+
+.vercel
+.env*.local

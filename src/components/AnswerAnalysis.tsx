@@ -194,7 +194,7 @@ export const AnswerAnalysis: React.FC<AnswerAnalysisProps> = ({ answerDetails, a
                             : 'bg-background border-border/30 text-text-muted'
                         }`}
                       >
-                        <span className="font-bold">{opt.letter}.</span> {opt.text}
+                        <span className="font-bold">{opt.letter}.</span> {typeof opt.text === 'string' ? opt.text : opt.text?.text ?? ''}
                       </div>
                     ))}
                   </div>

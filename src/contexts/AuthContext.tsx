@@ -1,15 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Student } from '../lib/db';
 
+type ExamOptions = {
+  selectedSubject?: string;
+  selectedPackage?: string;
+};
+
 type AuthState = {
   isAdmin: boolean;
   student: Student | null;
   tokenId: string | null;
+  examOptions?: ExamOptions;
 };
 
 type AuthContextType = {
   auth: AuthState;
-  loginStudent: (student: Student, tokenId: string) => void;
+  loginStudent: (student: Student, tokenId: string, examOptions?: ExamOptions) => void;
   loginAdmin: () => void;
   logout: () => void;
 };
@@ -26,10 +32,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('auth_state', JSON.stringify(auth));
   }, [auth]);
 
-  const loginStudent = (student: Student, tokenId: string) => setAuth({ isAdmin: false, student, tokenId });
-  
+  const loginStudent = (student: Student, tokenId: string, examOptions?: ExamOptions) => setAuth({ isAdmin: false, student, tokenId, examOptions });
+
   const loginAdmin = () => setAuth({ isAdmin: true, student: null, tokenId: null });
-  
+
   const logout = () => {
     setAuth({ isAdmin: false, student: null, tokenId: null });
   };
