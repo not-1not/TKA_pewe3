@@ -118,6 +118,9 @@ export type Result = {
   timestamp: string;
   tokenId?: string; 
   token?: string; 
+  subject?: string;
+  materi_id?: string;
+  materiName?: string;
   answerDetails?: AnswerDetail[]; 
   durationSeconds?: number;
   details?: string;
@@ -507,7 +510,12 @@ export const api = {
       correct: res.correct,
       wrong: res.wrong,
       score: res.score,
+      max_score: res.maxScore || res.correct + res.wrong,
       timestamp: res.timestamp,
+      tokenId: res.tokenId,
+      token: res.token,
+      subject: res.subject,
+      materi_id: res.materi_id,
       details: JSON.stringify(detailsData)
     };
 

@@ -49,10 +49,22 @@ const SessionRow = ({ student, state }: { student: Student, state: ExamState }) 
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 w-full md:w-auto border-l border-border pl-6">
-        <div className="text-center">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full md:w-auto border-l border-border pl-6">
+        <div className="text-center min-w-[80px]">
+          <span className="block text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Mata Pelajaran</span>
+          <span className="text-sm font-black text-text-main">
+            {(state as any).tokenInfo?.subject || '-'}
+          </span>
+        </div>
+        <div className="text-center min-w-[80px]">
+          <span className="block text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Materi / Token</span>
+          <span className="text-sm font-black text-primary">
+            {(state as any).tokenInfo?.materiName || '-'} / {(state as any).tokenInfo?.token || '-'}
+          </span>
+        </div>
+        <div className="text-center min-w-[80px]">
           <span className="block text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Sisa Waktu</span>
-          <span className={`font-mono font-black text-xl flex items-center gap-2 ${remaining < 300 ? 'text-danger animate-pulse' : 'text-text-main'}`}>
+          <span className={`font-mono font-black text-xl flex items-center justify-center gap-2 ${remaining < 300 ? 'text-danger animate-pulse' : 'text-text-main'}`}>
             <Clock size={16} /> {formatTime(remaining)}
           </span>
         </div>
@@ -76,10 +88,12 @@ const Monitor = () => {
 
   const loadData = async () => {
     try {
-        const [allStates, allStudents, allQs] = await Promise.all([
+        const [allStates, allStudents, allQs, allTokens, materiList] = await Promise.all([
           api.getAllExamStates(),
           api.getStudents(),
-          api.getQuestions()
+          api.getQuestions(),
+          api.getTokens(),
+          api.getMateriList()
         ]);
         
         const studentMap: Record<string, Student> = {};
@@ -89,10 +103,21 @@ const Monitor = () => {
 
         const active = Object.values(allStates)
           .filter(state => !state.submitted && studentMap[state.studentId])
-          .map(state => ({
-            student: studentMap[state.studentId],
-            state
-          }));
+          .map(state => {
+            const token = allTokens.find(t => t.id === state.tokenId);
+            // Enrich state with token info for UI
+            const enrichedState = { 
+              ...state, 
+              tokenInfo: {
+                ...token,
+                materiName: materiList.find(m => m.id === token?.materi_id)?.name || ''
+              } 
+            };
+            return {
+              student: studentMap[state.studentId],
+              state: enrichedState as unknown as ExamState
+            };
+          });
         
         setActiveSessions(active);
         setLastUpdate(new Date());

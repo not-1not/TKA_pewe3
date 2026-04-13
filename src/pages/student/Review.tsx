@@ -102,6 +102,12 @@ const Review = () => {
           };
         });
         
+        // Get token info for tracking
+        let tokenInfo = null;
+        if (examState.tokenId) {
+          tokenInfo = await api.getTokens().then(ts => ts.find(t => t.id === examState.tokenId));
+        }
+
         const result: Result = {
           id: 'RES-' + Math.random().toString(36).substring(2, 9),
           studentId: auth.student.id,
@@ -112,6 +118,11 @@ const Review = () => {
           score,
           maxScore,
           timestamp: new Date().toISOString(),
+          tokenId: examState.tokenId,
+          token: tokenInfo?.token,
+          subject: tokenInfo?.subject,
+          materi_id: tokenInfo?.materi_id,
+          materiName: tokenInfo?.materiName,
           answerDetails,
           durationSeconds: examState.endTime ? Math.round((examState.endTime - (examState.startTime || 0)) / 1000) : 0
         };

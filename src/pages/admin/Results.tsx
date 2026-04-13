@@ -18,12 +18,22 @@ const AdminResults = () => {
   const fetchResults = async () => {
     setIsLoading(true);
     try {
-      const [data, allQuestions, allTokens] = await Promise.all([
+      const [data, allQuestions, allTokens, materiList] = await Promise.all([
         api.getResults(),
         api.getQuestions(),
-        api.getTokens()
+        api.getTokens(),
+        api.getMateriList()
       ]);
-      setResults(data);
+      
+      const enrichedResults = data.map(r => {
+        const tok = allTokens.find(t => t.id === r.tokenId);
+        return {
+          ...r,
+          materiName: r.materiName || materiList.find(m => m.id === (r.materi_id || tok?.materi_id))?.name || ''
+        };
+      });
+
+      setResults(enrichedResults);
       setQuestions(allQuestions);
       setTokens(allTokens);
     } catch (err) {
@@ -40,23 +50,24 @@ const AdminResults = () => {
   const handleExportCSV = () => {
     if (results.length === 0) return;
 
-    const headers = ['Timestamp', 'Student Name', 'School', 'Mapel', 'Token', 'Correct', 'Wrong', 'Score'];
+    const headers = ['Timestamp', 'Student Name', 'School', 'Mapel', 'Materi', 'Token', 'Correct', 'Wrong', 'Score'];
     const rows = results.map(r => {
-      // Cari token yang digunakan siswa ini (berdasarkan result.tokenId atau result.token jika ada)
-      let tokenStr = '';
-      let mapel = '';
-      if (r.tokenId) {
+      let tokenStr = r.token || '';
+      let mapel = r.subject || '';
+      let materi = (r as any).materiName || '';
+
+      if (!tokenStr && r.tokenId) {
         const tok = tokens.find(t => t.id === r.tokenId);
         tokenStr = tok?.token || '';
         mapel = tok?.subject || '';
-      } else if (r.token) {
-        tokenStr = r.token;
       }
+      
       return [
         new Date(r.timestamp).toLocaleString(),
         r.studentName,
         r.school,
         mapel,
+        materi,
         tokenStr,
         r.correct,
         r.wrong,
@@ -165,6 +176,7 @@ const AdminResults = () => {
                     <th className="p-3 sm:p-4 font-bold">Student Name</th>
                     <th className="p-3 sm:p-4 font-bold">School</th>
                     <th className="p-3 sm:p-4 font-bold">Mapel</th>
+                    <th className="p-3 sm:p-4 font-bold">Materi</th>
                     <th className="p-3 sm:p-4 font-bold">Token</th>
                     <th className="p-3 sm:p-4 font-bold text-center">Correct</th>
                     <th className="p-3 sm:p-4 font-bold text-center">Wrong</th>
@@ -189,8 +201,9 @@ const AdminResults = () => {
                           <td className="p-3 sm:p-4 text-xs sm:text-sm">{new Date(r.timestamp).toLocaleString()}</td>
                           <td className="p-3 sm:p-4 font-bold text-text-main text-sm sm:text-base">{r.studentName}</td>
                           <td className="p-3 sm:p-4 text-text-muted text-xs sm:text-sm">{r.school}</td>
-                          <td className="p-3 sm:p-4 text-xs sm:text-sm">{mapel}</td>
-                          <td className="p-3 sm:p-4 text-xs sm:text-sm">{tokenStr}</td>
+                          <td className="p-3 sm:p-4 text-xs sm:text-sm font-bold text-secondary">{r.subject || mapel}</td>
+                          <td className="p-3 sm:p-4 text-xs sm:text-sm">{(r as any).materiName || '-'}</td>
+                          <td className="p-3 sm:p-4 text-xs sm:text-sm font-mono">{r.token || tokenStr}</td>
                           <td className="p-3 sm:p-4 text-center font-bold text-secondary text-sm sm:text-base">{r.correct}</td>
                           <td className="p-3 sm:p-4 text-center font-bold text-danger text-sm sm:text-base">{r.wrong}</td>
                           <td className="p-3 sm:p-4 text-center font-black text-xl text-primary">{r.score}%</td>
