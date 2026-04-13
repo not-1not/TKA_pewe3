@@ -15,46 +15,65 @@ export const calculateScore = (
   questions: Question[],
   answers: Record<string, any>
 ) => {
-  let correct = 0;
-  let wrong = 0;
+  let correctCount = 0;
+  let wrongCount = 0;
+  let totalScore = 0;
+  let maxPossibleScore = 0;
 
   questions.forEach(q => {
+    // Calculate max possible points for this question
+    let qPoints = 1;
+    if (q.type === 'pilihan_ganda_kompleks') qPoints = 2;
+    else if (q.type === 'multiple_choice_multiple_answer') qPoints = 3;
+    
+    maxPossibleScore += qPoints;
+
     const ans = answers[q.id];
-    if (!ans) return; // Unanswered
+    if (!ans) {
+      wrongCount++;
+      return; 
+    }
 
     if (q.type === 'pilihan_ganda') {
       if (ans === q.correct_answer) {
-        correct++;
+        correctCount++;
+        totalScore += qPoints;
       } else {
-        wrong++;
+        wrongCount++;
       }
     } else if (q.type === 'pilihan_ganda_kompleks') {
       const selectedIndices = (ans as number[]) || [];
       const correctIndices = q.statements?.map((s, i) => s.isCorrect ? i : -1).filter(i => i !== -1) || [];
       
-      // Must have exactly same indices
       const isCorrect = selectedIndices.length === correctIndices.length && 
                         selectedIndices.every(i => correctIndices.includes(i));
       
       if (isCorrect) {
-        correct++;
+        correctCount++;
+        totalScore += qPoints;
       } else {
-        wrong++;
+        wrongCount++;
       }
     } else if (q.type === 'multiple_choice_multiple_answer') {
       const statementAnswers = (ans as Record<number, string>) || {};
-      const isCorrect = q.statements?.every((s, i) => statementAnswers[i] === s.correctAnswer);
+      const isCorrect = q.statements && q.statements.length > 0 && 
+                        q.statements.every((s, i) => statementAnswers[i] === s.correctAnswer);
       
       if (isCorrect) {
-        correct++;
+        correctCount++;
+        totalScore += qPoints;
       } else {
-        wrong++;
+        wrongCount++;
       }
     }
   });
 
-  const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
-  return { correct, wrong, score };
+  return { 
+    correct: correctCount, 
+    wrong: wrongCount, 
+    score: totalScore,
+    maxScore: maxPossibleScore
+  };
 };
 
 // Format time utility

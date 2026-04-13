@@ -69,24 +69,23 @@ const Exam = () => {
         }
         setExamState(activeState);
 
-        let allQs: Question[] = [];
-        // Ambil soal dari paket jika token punya paket
-        if (token.package && token.package !== '') {
-          // Cari id paket berdasarkan nama
-          try {
-            const paketList = await api.getPaketSoalList();
-            const paket = paketList.find(p => p.name === token.package);
-            if (paket) {
-              allQs = await api.getQuestionsByPaket(paket.id);
-            } else {
-              allQs = await api.getQuestions();
-            }
-          } catch {
-            allQs = await api.getQuestions();
-          }
-        } else {
-          allQs = await api.getQuestions();
-        }
+        let allQs: Question[] = await api.getQuestions();
+        
+        // Filter based on token configuration
+        const filteredQs = allQs.filter(q => {
+          // Filter by Package if token specifies one
+          if (token.package && q.package !== token.package) return false;
+          
+          // Filter by Subject if token specifies one (and it's not 'All' / 'Mixed')
+          if (token.subject && token.subject !== 'All' && q.subject !== token.subject) return false;
+          
+          // Filter by Materi ID if token specifies one
+          if (token.materi_id && q.materi_id !== token.materi_id) return false;
+          
+          return true;
+        });
+
+        allQs = filteredQs;
         const orderedQs = activeState.questionOrder.map(id => allQs.find(q => q.id === id)).filter(Boolean) as Question[];
         setQuestions(orderedQs);
     } catch (err) {
@@ -322,18 +321,23 @@ const Exam = () => {
             const pair = getPair(stmt?.correctAnswer || '');
 
             return (
-              <div key={origIndex} className="bg-neutral-50 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-neutral-200">
-                <div className="text-base sm:text-lg font-bold text-neutral-800 mb-3 sm:mb-4">
-                  {displayIndex + 1}. <RichText html={stmt?.text || ''} className="inline" />
+              <div key={origIndex} className="bg-neutral-50 p-4 sm:p-6 rounded-2xl border-2 border-neutral-200/60 shadow-sm shadow-black/[0.02]">
+                <div className="flex gap-4 items-start mb-5">
+                   <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm border border-blue-200">
+                     {displayIndex + 1}
+                   </div>
+                   <div className="flex-1 text-base sm:text-lg font-bold text-neutral-800 leading-relaxed pt-0.5">
+                     <RichText html={stmt?.text || ''} />
+                   </div>
                 </div>
-                <div className="flex gap-2 sm:gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 ml-0 sm:ml-12">
                   {pair.map(opt => (
                     <button
                       key={opt}
                       onClick={() => handleStatementCheck(origIndex, opt)}
-                      className={`flex-1 py-2 sm:py-3 px-2 sm:px-4 rounded-xl font-bold border-2 transition-all text-sm sm:text-base ${statementAnswers[origIndex] === opt
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                        : 'bg-white border-neutral-200 text-neutral-600 hover:border-blue-300'
+                      className={`py-3 sm:py-4 px-4 rounded-xl font-black transition-all text-sm sm:text-base border-2 ${statementAnswers[origIndex] === opt
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20 scale-[1.02]'
+                        : 'bg-white border-neutral-200 text-neutral-600 hover:border-blue-300 hover:bg-blue-50/30'
                         }`}
                     >
                       {opt}

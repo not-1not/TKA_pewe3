@@ -186,7 +186,9 @@ const Result = () => {
                 </div>
                 <div className="text-center">
                   <div className="text-sm font-bold text-text-muted uppercase mb-1">Tingkat Keberhasilan</div>
-                  <div className="text-3xl font-black text-secondary">{result.score}%</div>
+                  <div className="text-3xl font-black text-secondary">
+                    {result.maxScore ? Math.round((result.score / result.maxScore) * 100) : result.score}%
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-sm font-bold text-text-muted uppercase mb-1">Durasi Ujian</div>

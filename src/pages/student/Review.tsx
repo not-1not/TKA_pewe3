@@ -67,7 +67,7 @@ const Review = () => {
     setIsSubmitting(true);
     
     try {
-        const { correct, wrong, score } = calculateScore(questions, examState.answers);
+        const { correct, wrong, score, maxScore } = calculateScore(questions, examState.answers);
         
         // Build answer details for analysis
         const answerDetails: AnswerDetail[] = questions.map(q => {
@@ -87,7 +87,8 @@ const Review = () => {
           } else if (q.type === 'multiple_choice_multiple_answer') {
             const statementAnswers = (studentAnswer as Record<number, string>) || {};
             correctAnswer = q.statements?.map(s => s.correctAnswer) || [];
-            isCorrect = q.statements?.every((s, i) => statementAnswers[i] === s.correctAnswer);
+            isCorrect = q.statements && q.statements.length > 0 && 
+                        q.statements.every((s, i) => statementAnswers[i] === s.correctAnswer);
           }
 
           return {
@@ -109,6 +110,7 @@ const Review = () => {
           correct,
           wrong,
           score,
+          maxScore,
           timestamp: new Date().toISOString(),
           answerDetails,
           durationSeconds: examState.endTime ? Math.round((examState.endTime - (examState.startTime || 0)) / 1000) : 0

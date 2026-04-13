@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from './Dashboard';
-import { api, Question, Statement, PaketSoal } from '../../lib/db';
+import { api, Question, Statement, PaketSoal, QuestionType } from '../../lib/db';
 import { Plus, Trash2, Edit3, X, CheckSquare, Square, Filter, Layers, Copy, Move, Search, Upload, FileQuestion, ChevronsUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
@@ -326,19 +326,41 @@ const QuestionBank = () => {
     if (!bulkText.trim()) return;
     setIsLoading(true);
     try {
-      const lines = bulkText.split('\n').filter(l => l.trim());
-      const newQuestions: Question[] = lines.map(line => {
-        const parts = line.split(/[\t|,]/).map(p => p.trim().replace(/^"|"$/g, ''));
+      const allRows = api.parseCSV(bulkText);
+      const newQuestions: Question[] = allRows.map(parts => {
+        // Skip header if it looks like one
+        if (parts[0]?.toLowerCase() === 'package' || parts[2]?.toLowerCase() === 'question') return null;
+        if (parts.length < 4) return null;
 
-        // Parse base columns (same as table display)
+        // Parse base columns
         const pkg = parts[0] || 'Default';
         const subj = parts[1] || 'Umum';
-        const qText = parts[2] || '';
-        const typeRaw = (parts[3] || 'PG').toUpperCase();
+        
+        // Detect if there's an extra column between Subject and Question (Category/Materi)
+        // or between Question and Type.
+        // Standard: pkg(0), subj(1), question(2), type(3)
+        // Let's check common patterns. If parts[3] does not look like a type (PG, PK, MCMA, TF, etc.)
+        // but parts[4] does, then they might have an extra column.
+        
+        let qText = parts[2] || '';
+        let typeRaw = (parts[3] || 'PG').toUpperCase();
+        let offset = 0;
+        
+        const isType = (s: string) => ['PG','MC','PK','MCMA','TF','MULTIPLE','PILIHAN'].some(t => s.toUpperCase().includes(t));
+        
+        if (!isType(typeRaw) && isType(parts[4] || '')) {
+          // Likely extra column like 'Category' at index 2 or 3
+          // If parts[2] is actually Category and parts[3] is Question
+          // ... we'll try to be smart but let's stick to a more predictable logic.
+          // For now, let's assume if index 4 is the type, everything is shifted 1.
+          qText = parts[3] || '';
+          typeRaw = (parts[4] || 'PG').toUpperCase();
+          offset = 1;
+        }
 
-        let type: any = 'pilihan_ganda';
+        let type: QuestionType = 'pilihan_ganda';
         if (typeRaw === 'PK' || typeRaw === 'KOMPLEKS' || typeRaw === 'PILIHAN_GANDA_KOMPLEKS') type = 'pilihan_ganda_kompleks';
-        if (typeRaw === 'MCMA' || typeRaw === 'TF' || typeRaw === 'MULTIPLE_CHOICE_MULTIPLE_ANSWER') type = 'multiple_choice_multiple_answer';
+        else if (typeRaw === 'MCMA' || typeRaw === 'TF' || typeRaw === 'MULTIPLE_CHOICE_MULTIPLE_ANSWER') type = 'multiple_choice_multiple_answer';
 
         const q: Question = {
           id: 'Q-' + Math.random().toString(36).substring(2, 9),
@@ -350,44 +372,54 @@ const QuestionBank = () => {
         };
 
         if (type === 'pilihan_ganda') {
-          // For PG: parts[4-8] are option_a-d and correct_answer, parts[9] is image
-          // Support OptionContent (text||image)
           const parseOpt = (str: string) => {
             const [text, image] = (str || '').split('||');
             return { text: text || '', image: image || '' };
           };
-          q.option_a = parseOpt(parts[4] || '');
-          q.option_b = parseOpt(parts[5] || '');
-          q.option_c = parseOpt(parts[6] || '');
-          q.option_d = parseOpt(parts[7] || '');
-          q.correct_answer = (parts[8] || 'A').toUpperCase() as any;
-          q.image = parts[9] || '';
+          q.option_a = parseOpt(parts[4 + offset] || '');
+          q.option_b = parseOpt(parts[5 + offset] || '');
+          q.option_c = parseOpt(parts[6 + offset] || '');
+          q.option_d = parseOpt(parts[7 + offset] || '');
+          q.correct_answer = (parts[8 + offset] || 'A').toUpperCase() as any;
+          q.image = parts[9 + offset] || '';
         } else {
-          // For PK/MCMA: parts[4-9] are s1_text, s1_ans, s2_text, s2_ans, s3_text, s3_ans, parts[10] is image
-          const s1_text = parts[4] || '';
-          const s1_ans = (parts[5] || '').toUpperCase();
-          const s2_text = parts[6] || '';
-          const s2_ans = (parts[7] || '').toUpperCase();
-          const s3_text = parts[8] || '';
-          const s3_ans = (parts[9] || '').toUpperCase();
-          q.image = parts[10] || '';
+          const s1_text = parts[4 + offset] || '';
+          const s1_ans = (parts[5 + offset] || '').toUpperCase();
+          const s2_text = parts[6 + offset] || '';
+          const s2_ans = (parts[7 + offset] || '').toUpperCase();
+          const s3_text = parts[8 + offset] || '';
+          const s3_ans = (parts[9 + offset] || '').toUpperCase();
+          q.image = parts[10 + offset] || '';
+
+          const isPositive = (val: string) => 
+            ['TRUE', '1', 'S', 'SESUAI', 'B', 'BENAR', 'T', 'TEPAT', 'Y', 'YA', 'MENDUKUNG'].includes(val.toUpperCase()) || 
+            val.toUpperCase().startsWith('SESUAI') || 
+            val.toUpperCase().startsWith('BENAR');
 
           if (type === 'pilihan_ganda_kompleks') {
             q.statements = [
-              { text: s1_text, isCorrect: s1_ans === 'TRUE' || s1_ans === '1' },
-              { text: s2_text, isCorrect: s2_ans === 'TRUE' || s2_ans === '1' },
-              { text: s3_text, isCorrect: s3_ans === 'TRUE' || s3_ans === '1' },
+              { text: s1_text, isCorrect: isPositive(s1_ans) },
+              { text: s2_text, isCorrect: isPositive(s2_ans) },
+              { text: s3_text, isCorrect: isPositive(s3_ans) },
             ];
           } else if (type === 'multiple_choice_multiple_answer') {
+            const getLabel = (val: string) => {
+              const v = val.toUpperCase();
+              if (v === 'BENAR' || v === 'SALAH' || v === 'B') return isPositive(val) ? 'Benar' : 'Salah';
+              if (v === 'TEPAT' || v === 'TIDAK TEPAT') return isPositive(val) ? 'Tepat' : 'Tidak Tepat';
+              if (v === 'YA' || v === 'TIDAK') return isPositive(val) ? 'Ya' : 'Tidak';
+              // Default to Sesuai/Tidak Sesuai as it's the standard for MCMA in this app
+              return isPositive(val) ? 'Sesuai' : 'Tidak Sesuai';
+            };
             q.statements = [
-              { text: s1_text, correctAnswer: s1_ans === 'TRUE' || s1_ans === 'S' ? 'Sesuai' : 'Tidak Sesuai' },
-              { text: s2_text, correctAnswer: s2_ans === 'TRUE' || s2_ans === 'S' ? 'Sesuai' : 'Tidak Sesuai' },
-              { text: s3_text, correctAnswer: s3_ans === 'TRUE' || s3_ans === 'S' ? 'Sesuai' : 'Tidak Sesuai' },
+              { text: s1_text, correctAnswer: getLabel(s1_ans) },
+              { text: s2_text, correctAnswer: getLabel(s2_ans) },
+              { text: s3_text, correctAnswer: getLabel(s3_ans) },
             ];
           }
         }
         return q;
-      }).filter(q => q.question);
+      }).filter((q): q is Question => q !== null && !!q.question);
 
       if (newQuestions.length === 0) throw new Error("No valid data found");
 
@@ -574,48 +606,43 @@ const QuestionBank = () => {
     const pkg = q.package || '';
     const subj = q.subject || '';
     const qText = (q.question || '').replace(/\|/g, ' ');
-    let type = 'PG';
-    let line = '';
+    const type = q.type || 'pilihan_ganda';
+
+    const getOptText = (opt: any) => {
+      if (typeof opt === 'object' && opt !== null) {
+        return `${opt.text || ''}${opt.image ? `||${opt.image}` : ''}`;
+      }
+      return String(opt || '');
+    };
+
+    let fields: string[] = [];
 
     if (q.type === 'pilihan_ganda') {
-      type = 'PG';
-      // Support OptionContent (object) for export
-      const getOpt = (opt: any) => {
-        if (typeof opt === 'object' && opt !== null) {
-          return `${opt.text || ''}||${opt.image || ''}`;
+      fields = [
+        getOptText(q.option_a),
+        getOptText(q.option_b),
+        getOptText(q.option_c),
+        getOptText(q.option_d),
+        q.correct_answer || 'A',
+        '' // Empty for PK/MCMA answer col
+      ];
+    } else {
+      for (let i = 0; i < 3; i++) {
+        const stmt = q.statements?.[i];
+        if (stmt) {
+          fields.push(stmt.text || '');
+          if (q.type === 'pilihan_ganda_kompleks') {
+            fields.push(stmt.isCorrect ? 'TRUE' : 'FALSE');
+          } else {
+            fields.push(stmt.correctAnswer || 'Tidak Sesuai');
+          }
+        } else {
+          fields.push('', q.type === 'pilihan_ganda_kompleks' ? 'FALSE' : 'Tidak Sesuai');
         }
-        return `${opt || ''}||`;
-      };
-      const optA = getOpt(q.option_a);
-      const optB = getOpt(q.option_b);
-      const optC = getOpt(q.option_c);
-      const optD = getOpt(q.option_d);
-      const ans = q.correct_answer || 'A';
-      line = `${pkg}|${subj}|${qText}|${type}|${optA}|${optB}|${optC}|${optD}|${ans}`;
-    } else if (q.type === 'pilihan_ganda_kompleks') {
-      type = 'PK';
-      const stmts = q.statements || [];
-      const stmt1 = (stmts[0]?.text || '').replace(/\|/g, ' ');
-      const stmt2 = (stmts[1]?.text || '').replace(/\|/g, ' ');
-      const stmt3 = (stmts[2]?.text || '').replace(/\|/g, ' ');
-      const correctLetters = stmts
-        .map((s, i) => s.isCorrect ? String.fromCharCode(65 + i) : null)
-        .filter(Boolean)
-        .join(',');
-      line = `${pkg}|${subj}|${qText}|${type}|${stmt1}|${stmt2}|${stmt3}|-|${correctLetters}`;
-    } else if (q.type === 'multiple_choice_multiple_answer') {
-      type = 'MCMA';
-      const stmts = q.statements || [];
-      const stmt1 = (stmts[0]?.text || '').replace(/\|/g, ' ');
-      const stmt2 = (stmts[1]?.text || '').replace(/\|/g, ' ');
-      const stmt3 = (stmts[2]?.text || '').replace(/\|/g, ' ');
-      const answers = stmts
-        .map(s => (s.correctAnswer || 'Sesuai').charAt(0))
-        .join(',');
-      line = `${pkg}|${subj}|${qText}|${type}|${stmt1}|${stmt2}|${stmt3}|-|${answers}`;
+      }
     }
-
-    return line;
+    
+    return `${pkg}|${subj}|${qText}|${type}|${fields.join('|')}|${q.image || ''}`;
   };
 
   const handleDownloadPackage = () => {
@@ -624,20 +651,20 @@ const QuestionBank = () => {
       return;
     }
 
-    const header = 'Package|Subject|Question|Type (PG/PK/MCMA)|OptA (text||image)|OptB (text||image)|OptC (text||image)|OptD (text||image)|Answer';
+    const header = 'package|subject|question|type|field1|field2|field3|field4|field5|field6|image';
     const lines = [header, ...filteredQuestions.map(formatQuestionForExport)];
     const content = lines.join('\n');
 
     const element = document.createElement('a');
     element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
-    const filename = `questions_${new Date().toISOString().split('T')[0]}.txt`;
+    const filename = `questions_export_${new Date().toISOString().split('T')[0]}.txt`;
     element.setAttribute('download', filename);
     element.style.display = 'none';
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
 
-    alert(`Downloaded ${filteredQuestions.length} questions as ${filename}`);
+    alert(`Downloaded ${filteredQuestions.length} questions as ${filename}. This file can be re-imported using Bulk Add.`);
   };
 
   const handleDownloadCSV = () => {
@@ -646,7 +673,10 @@ const QuestionBank = () => {
       return;
     }
 
-    // CSV format matches table display: package|subject|question|type + type-specific fields
+    // Standard columns: package, subject, question, type, col4, col5, col6, col7, col8, col9, image
+    // PG uses: col4-7 (opts), col8 (ans), col9 (empty)
+    // PK/MCMA uses: col4-9 (s1_text, s1_ans, s2_text, s2_ans, s3_text, s3_ans)
+    
     const csvRows = filteredQuestions.map(q => {
       let row = [
         q.package || 'Default',
@@ -654,24 +684,28 @@ const QuestionBank = () => {
         q.question || '',
         q.type || 'pilihan_ganda'
       ];
+
+      const getOptText = (opt: any) => {
+        if (typeof opt === 'object' && opt !== null) {
+          return `${opt.text || ''}${opt.image ? `||${opt.image}` : ''}`;
+        }
+        return String(opt || '');
+      };
+
       if (q.type === 'pilihan_ganda') {
-        const getOpt = (opt: any) => {
-          if (typeof opt === 'object' && opt !== null) {
-            return `${opt.text || ''}||${opt.image || ''}`;
-          }
-          return `${opt || ''}||`;
-        };
         row.push(
-          getOpt(q.option_a),
-          getOpt(q.option_b),
-          getOpt(q.option_c),
-          getOpt(q.option_d),
-          q.correct_answer || 'A'
+          getOptText(q.option_a),
+          getOptText(q.option_b),
+          getOptText(q.option_c),
+          getOptText(q.option_d),
+          q.correct_answer || 'A',
+          '' // Column 9 is empty for PG
         );
       } else {
+        // PK / MCMA
         for (let i = 0; i < 3; i++) {
           const stmt = q.statements?.[i];
-          if (stmt && stmt.text) {
+          if (stmt) {
             row.push(stmt.text || '');
             if (q.type === 'pilihan_ganda_kompleks') {
               row.push(stmt.isCorrect ? 'TRUE' : 'FALSE');
@@ -679,12 +713,12 @@ const QuestionBank = () => {
               row.push(stmt.correctAnswer || 'Tidak Sesuai');
             }
           } else {
-            row.push('');
-            row.push(q.type === 'pilihan_ganda_kompleks' ? 'FALSE' : 'Tidak Sesuai');
+            row.push('', q.type === 'pilihan_ganda_kompleks' ? 'FALSE' : 'Tidak Sesuai');
           }
         }
       }
-      row.push(q.image || '');
+      row.push(q.image || ''); // Column 10 (Image)
+      
       return row.map(cell => {
         const str = String(cell);
         if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -694,27 +728,18 @@ const QuestionBank = () => {
       }).join(',');
     });
 
-    // Build headers based on first question type
-    const firstType = filteredQuestions[0]?.type;
-    let headers = ['package', 'subject', 'question', 'type'];
-    if (firstType === 'pilihan_ganda') {
-      headers.push('option_a (text||image)', 'option_b (text||image)', 'option_c (text||image)', 'option_d (text||image)', 'correct_answer');
-    } else {
-      headers.push('s1_text', 's1_answer', 's2_text', 's2_answer', 's3_text', 's3_answer');
-    }
-    headers.push('image');
-
+    const headers = ['package', 'subject', 'question', 'type', 'optA_or_s1text', 'optB_or_s1ans', 'optC_or_s2text', 'optD_or_s2ans', 'ansPG_or_s3text', 's3ans', 'image'];
     const content = [headers.join(','), ...csvRows].join('\n');
     const element = document.createElement('a');
     element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(content));
-    const filename = `questions_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `questions_export_${new Date().toISOString().split('T')[0]}.csv`;
     element.setAttribute('download', filename);
     element.style.display = 'none';
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
 
-    alert(`Downloaded ${filteredQuestions.length} questions as ${filename}`);
+    alert(`Downloaded ${filteredQuestions.length} questions as ${filename}. This file can be re-imported using Bulk Add.`);
   };
 
   const packageStats = allUniquePackages.map(p => ({
@@ -1305,7 +1330,9 @@ const QuestionBank = () => {
                             </span>
                           )}
                           <span className="text-[9px] text-text-muted font-bold uppercase truncate max-w-[200px]">
-                            {q.type === 'pilihan_ganda' ? `${q.option_a}, ${q.option_b}...` : `${q.statements?.length} Statement`}
+                            {q.type === 'pilihan_ganda' 
+                              ? `${typeof q.option_a === 'object' ? (q.option_a as any).text : q.option_a}, ${typeof q.option_b === 'object' ? (q.option_b as any).text : q.option_b}...`
+                              : `${q.statements?.length} Statement`}
                           </span>
                         </div>
                       </div>

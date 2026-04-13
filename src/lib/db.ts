@@ -73,31 +73,7 @@ export type Question = {
   materi_id?: string; // Relasi ke materi
   materi?: Materi; // Optional: relasi materi (join)
 };
-// --- Materi CRUD ---
-export async function getMateriList() {
-  const { data, error } = await supabase.from('materi').select('*').order('created_at', { ascending: false });
-  if (error) throw error;
-  return data as Materi[];
-}
-
-export async function addMateri(materi: Omit<Materi, 'id' | 'created_at'>) {
-  const { data, error } = await supabase.from('materi').insert([materi]).select();
-  if (error) throw error;
-  return data?.[0] as Materi;
-}
-
-export async function updateMateri(id: string, materi: Partial<Materi>) {
-  const { data, error } = await supabase.from('materi').update(materi).eq('id', id).select();
-  if (error) throw error;
-  return data?.[0] as Materi;
-}
-
-export async function deleteMateri(id: string) {
-  const { error } = await supabase.from('materi').delete().eq('id', id);
-  if (error) throw error;
-  return true;
-}
-
+// --- Tokens Type ---
 export type ExamToken = {
   id: string;
   token: string;
@@ -107,8 +83,11 @@ export type ExamToken = {
   package?: string;
   active: boolean;
   resultsVisible?: boolean; // Admin dapat menampilkan/menyembunyikan hasil siswa
-  allowed_subjects?: string[]; // List mapel yang diizinkan untuk tombol login siswa
-  allowed_packages?: string[]; // List paket yang diizinkan untuk tombol login siswa
+  allowed_subjects?: string[]; 
+  allowed_packages?: string[]; 
+  materi_id?: string;
+  materiName?: string;
+  created_at?: string;
 };
 
 export type Answer = {
@@ -135,12 +114,13 @@ export type Result = {
   correct: number;
   wrong: number;
   score: number;
+  maxScore?: number;
   timestamp: string;
-  tokenId?: string; // Reference to the exam token used
-  token?: string; // Token string (alternative to tokenId)
-  answerDetails?: AnswerDetail[]; // For TypeScript only - stored as JSON string in DB
-  durationSeconds?: number; // For TypeScript only - stored as JSON string in DB
-  details?: string; // JSON string containing answerDetails and durationSeconds
+  tokenId?: string; 
+  token?: string; 
+  answerDetails?: AnswerDetail[]; 
+  durationSeconds?: number;
+  details?: string;
 };
 
 export type ExamState = {
@@ -191,7 +171,7 @@ const mapQuestionFromDb = (q: any): Question => {
     const correctAnswers = (q.answer || '').toUpperCase().split(',').map((s: string) => s.trim());
     res.statements = optionsArray.map((opt: any, idx: number) => {
       const letter = String.fromCharCode(65 + idx);
-      const text = typeof opt === 'string' ? opt : (opt?.statement || '');
+      const text = typeof opt === 'string' ? opt : (opt?.text || opt?.statement || '');
       const isCorrect = correctAnswers.includes(letter);
       return { text, isCorrect };
     });
@@ -204,7 +184,7 @@ const mapQuestionFromDb = (q: any): Question => {
       answerArray.push('Sesuai');
     }
     res.statements = optionsArray.map((opt: any, idx: number) => {
-      const text = typeof opt === 'string' ? opt : (opt?.statement || '');
+      const text = typeof opt === 'string' ? opt : (opt?.text || opt?.statement || '');
       const correctAnswer = answerArray[idx] || 'Sesuai';
       return { text, correctAnswer };
     });
@@ -213,6 +193,28 @@ const mapQuestionFromDb = (q: any): Question => {
 };
 
 export const api = {
+  // --- Materi CRUD ---
+  getMateriList: async () => {
+    const { data, error } = await supabase.from('materi').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Materi[];
+  },
+  addMateri: async (materi: Omit<Materi, 'id' | 'created_at'>) => {
+    const { data, error } = await supabase.from('materi').insert([materi]).select();
+    if (error) throw error;
+    return data?.[0] as Materi;
+  },
+  updateMateri: async (id: string, materi: Partial<Materi>) => {
+    const { data, error } = await supabase.from('materi').update(materi).eq('id', id).select();
+    if (error) throw error;
+    return data?.[0] as Materi;
+  },
+  deleteMateri: async (id: string) => {
+    const { error } = await supabase.from('materi').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
   // --- Paket Soal ---
   getPaketSoalList: async (): Promise<PaketSoal[]> => {
     const { data, error } = await supabase.from('paket_soal').select('*').order('created_at', { ascending: false });
@@ -613,6 +615,20 @@ export const api = {
 
   // --- CSV Parsers ---
   parseCSV: (content: string) => {
+    if (!content) return [];
+    
+    // Auto-detect delimiter
+    const firstLine = content.split('\n')[0] || '';
+    let delimiter = ',';
+    const counts = {
+      ',': (firstLine.match(/,/g) || []).length,
+      '|': (firstLine.match(/\|/g) || []).length,
+      '\t': (firstLine.match(/\t/g) || []).length
+    };
+    
+    if (counts['|'] > counts[','] && counts['|'] > counts['\t']) delimiter = '|';
+    else if (counts['\t'] > counts[','] && counts['\t'] > counts['|']) delimiter = '\t';
+
     const rows: string[][] = [];
     let currentRow: string[] = [];
     let currentCell = '';
@@ -629,17 +645,17 @@ export const api = {
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (char === ',' && !inQuotes) {
-        currentRow.push(currentCell.trim());
-        currentCell = '';
       } else if ((char === '\r' || char === '\n') && !inQuotes) {
-        if (currentCell || currentRow.length > 0) {
+        if (currentCell !== '' || currentRow.length > 0) {
           currentRow.push(currentCell.trim());
           rows.push(currentRow);
-          currentRow = [];
           currentCell = '';
+          currentRow = [];
         }
         if (char === '\r' && nextChar === '\n') i++;
+      } else if (char === delimiter && !inQuotes) {
+        currentRow.push(currentCell.trim());
+        currentCell = '';
       } else {
         currentCell += char;
       }

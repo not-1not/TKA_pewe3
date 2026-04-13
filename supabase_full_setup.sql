@@ -133,11 +133,28 @@ DO $$ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
--- Add all potentially missing columns to questions
 DO $$ BEGIN
-    ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS subject TEXT;
+    ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS materi_id TEXT;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
+
+DO $$ BEGIN
+    ALTER TABLE public.results ADD COLUMN IF NOT EXISTS max_score NUMERIC;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE public.tokens ADD COLUMN IF NOT EXISTS materi_id TEXT;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- 8. Create table 'materi'
+CREATE TABLE IF NOT EXISTS public.materi (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 DO $$ BEGIN
     ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS "package" TEXT;

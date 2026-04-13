@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from './Dashboard';
-import { api, ExamToken } from '../../lib/db';
-import { Plus, Trash2, KeyRound, Copy, CheckSquare, Square, Zap, ZapOff, BookOpen, Layers, Eye, EyeOff, Edit3, Check, X, Save } from 'lucide-react';
+import { api, ExamToken, Materi } from '../../lib/db';
+import { Plus, Trash2, KeyRound, Copy, CheckSquare, Square, Zap, ZapOff, BookOpen, Layers, Eye, EyeOff, Edit3, Check, X, Save, Book } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
 const Tokens = () => {
@@ -14,6 +14,9 @@ const Tokens = () => {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [availablePackages, setAvailablePackages] = useState<string[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<string>('All');
+  const [availableMateri, setAvailableMateri] = useState<Materi[]>([]);
+  const [selectedMateriId, setSelectedMateriId] = useState<string>('');
+  
   // Pengaturan baru:
   const [allowedSubjects, setAllowedSubjects] = useState<string[]>([]);
   const [allowedPackages, setAllowedPackages] = useState<string[]>([]);
@@ -21,14 +24,22 @@ const Tokens = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [allTokens, allQuestions] = await Promise.all([
+      const [allTokens, allQuestions, materiList] = await Promise.all([
         api.getTokens(),
-        api.getQuestions()
+        api.getQuestions(),
+        api.getMateriList()
       ]);
-      setTokens(allTokens);
-      const subjects = Array.from(new Set(allQuestions.map(q => q.subject).filter(Boolean)));
+      
+      const tokensWithMateri = (allTokens as any[]).map(t => ({
+        ...t,
+        materiName: materiList.find(m => m.id === t.materi_id)?.name || ''
+      }));
+
+      setTokens(tokensWithMateri);
+      setAvailableMateri(materiList);
+      const subjects = Array.from(new Set(allQuestions.map(q => q.subject).filter(Boolean))) as string[];
       setAvailableSubjects(subjects);
-      const packs = Array.from(new Set(allQuestions.map(q => q.package).filter(Boolean)));
+      const packs = Array.from(new Set(allQuestions.map(q => q.package).filter(Boolean))) as string[];
       setAvailablePackages(['All', ...packs]);
     } catch (err) {
       console.error(err);
@@ -66,12 +77,9 @@ const Tokens = () => {
         selectedSubjects.forEach(subject => {
           const subjectQs = allQuestions.filter(q => 
             (q.subject === subject || subject === 'All') && 
-            (selectedPackage === 'All' || q.package === selectedPackage)
+            (selectedPackage === 'All' || q.package === selectedPackage) &&
+            (!selectedMateriId || q.materi_id === selectedMateriId)
           );
-          if (qCount > subjectQs.length && subject !== 'All') {
-            // Note: confirm might block but it's okay for admin simple flow
-            // If strictly needing non-blocking UI, would need a custom modal
-          }
 
           newTokens.push({
             id: 'TOK-' + Date.now() + Math.random().toString(36).substring(2, 5),
@@ -82,7 +90,8 @@ const Tokens = () => {
             package: selectedPackage === 'All' ? '' : selectedPackage,
             active: true,
             allowed_subjects: allowedSubjects.length > 0 ? allowedSubjects : undefined,
-            allowed_packages: allowedPackages.length > 0 ? allowedPackages : undefined
+            allowed_packages: allowedPackages.length > 0 ? allowedPackages : undefined,
+            materi_id: selectedMateriId || undefined
           });
         });
 
@@ -95,6 +104,7 @@ const Tokens = () => {
         setSelectedSubjects([]);
         setAllowedSubjects([]);
         setAllowedPackages([]);
+        setSelectedMateriId('');
         alert(`Successfully generated ${newTokens.length} tokens.`);
     } catch (err: any) {
         console.error("Token creation error:", err);
@@ -358,51 +368,76 @@ const Tokens = () => {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="input-label font-black text-xs uppercase tracking-widest text-secondary">2. Select Package (Optional)</label>
-                <select 
-                  value={selectedPackage}
-                  onChange={(e) => setSelectedPackage(e.target.value)}
-                  className="input-field bg-background"
-                  title="Select a specific question package"
+              {/* Additional Filters */}
+              <div className="space-y-3 pt-4 border-t border-border">
+                <label className="input-label font-black text-xs uppercase tracking-widest text-secondary">2. Advanced Filtering (Optional)</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="input-group">
+                    <label className="input-label text-[10px]">Package</label>
+                    <select 
+                      className="input-field bg-background"
+                      value={selectedPackage}
+                      onChange={(e) => setSelectedPackage(e.target.value)}
+                      title="Select package"
+                    >
+                      {availablePackages.map(p => (
+                        <option key={p} value={p}>{p === 'All' ? 'All Packages' : p}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label text-[10px]">Materi</label>
+                    <select 
+                      className="input-field bg-background"
+                      value={selectedMateriId}
+                      onChange={(e) => setSelectedMateriId(e.target.value)}
+                      title="Select material"
+                    >
+                      <option value="">All Materials</option>
+                      {availableMateri.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-border mt-4">
+                <label className="input-label font-black text-xs uppercase tracking-widest text-secondary">3. Token Configuration</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="input-group">
+                    <label className="input-label text-[10px]">Duration (Min)</label>
+                    <input 
+                      type="number" min="5" max="180" step="5"
+                      className="input-field text-center bg-background" 
+                      value={duration}
+                      onChange={(e) => setDuration(parseInt(e.target.value))}
+                      title="Duration in minutes"
+                      placeholder="60"
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label text-[10px]">Qs per Subject</label>
+                    <input 
+                      type="number" min="1" max="100"
+                      className="input-field text-center bg-background" 
+                      value={qCount}
+                      onChange={(e) => setQCount(parseInt(e.target.value))}
+                      title="Questions per subject"
+                      placeholder="25"
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="btn btn-primary w-full shadow-lg py-4 flex items-center justify-center gap-2 text-lg disabled:opacity-50"
+                  disabled={selectedSubjects.length === 0}
                 >
-                  {availablePackages.map(p => (
-                    <option key={p} value={p}>{p === 'All' ? 'All Packages' : p}</option>
-                  ))}
-                </select>
+                  <Zap size={20} /> Generate {selectedSubjects.length} Tokens
+                </button>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="input-group">
-                  <label className="input-label text-[10px]">Duration (Min)</label>
-                  <input 
-                    type="number" min="5" max="180" step="5"
-                    className="input-field text-center" 
-                    value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value))}
-                    title="Exam duration in minutes"
-                  />
-                </div>
-                <div className="input-group">
-                  <label className="input-label text-[10px]">Qs per Subject</label>
-                  <input 
-                    type="number" min="1" max="100"
-                    className="input-field text-center" 
-                    value={qCount}
-                    onChange={(e) => setQCount(parseInt(e.target.value))}
-                    title="Number of questions per subject"
-                  />
-                </div>
-              </div>
-
-
-              <button 
-                type="submit" 
-                className="btn btn-primary w-full shadow-lg py-4 flex items-center justify-center gap-2 text-lg disabled:opacity-50"
-                disabled={selectedSubjects.length === 0}
-              >
-                <Zap size={20} /> Generate {selectedSubjects.length} Tokens
-              </button>
             </form>
           </div>
         </div>
@@ -482,6 +517,11 @@ const Tokens = () => {
                               {copiedId === t.id ? <Check size={14} /> : <Copy size={14} />}
                             </button>
                          </div>
+                      </div>
+
+                      <div className="text-right hidden sm:block px-6 border-l border-border">
+                        <div className="text-xs font-black text-text-muted uppercase">Materi</div>
+                        <div className="text-sm font-black text-text-main">{t.materiName || '-'}</div>
                       </div>
 
                       <div className="text-right hidden sm:block px-6 border-l border-border">
