@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from './Dashboard';
 import { api, Result, Question } from '../../lib/db';
-import { Download, Search, Edit3, Trash2, X, Save, BarChart3 } from 'lucide-react';
+import { Download, Search, Edit3, Trash2, X, Save, BarChart3, Trophy } from 'lucide-react';
+
 import { AnswerAnalysis } from '../../components/AnswerAnalysis';
 
 const AdminResults = () => {
@@ -14,6 +15,9 @@ const AdminResults = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedResult, setSelectedResult] = useState<Result | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [groupByToken, setGroupByToken] = useState(false);
+  const [sortBy, setSortBy] = useState<'timestamp' | 'score' | 'name'>('timestamp');
+
 
   const fetchResults = async () => {
     setIsLoading(true);
@@ -127,10 +131,134 @@ const AdminResults = () => {
     }
   };
 
-  const filteredResults = results.filter(r =>
-    r.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.school.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredResults = results
+    .filter(r =>
+      r.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.school.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === 'timestamp') return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      if (sortBy === 'score') return b.score - a.score;
+      if (sortBy === 'name') return a.studentName.localeCompare(b.studentName);
+      return 0;
+    });
+
+  const top10 = [...results]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+
+  const groupedResults = filteredResults.reduce((acc, r) => {
+    let tokenStr = r.token || 'No Token';
+    if (!tokenStr && r.tokenId) {
+      const tok = tokens.find(t => t.id === r.tokenId);
+      tokenStr = tok?.token || 'Unknown Token';
+    }
+    if (!acc[tokenStr]) acc[tokenStr] = [];
+    acc[tokenStr].push(r);
+    return acc;
+  }, {} as Record<string, Result[]>);
+
+  const renderResultRow = (r: Result) => {
+    let tokenStr = '';
+    let mapel = '';
+    if (r.tokenId) {
+      const tok = tokens.find(t => t.id === r.tokenId);
+      tokenStr = tok?.token || '';
+      mapel = tok?.subject || '';
+    } else if (r.token) {
+      tokenStr = r.token;
+    }
+    return (
+      <tr key={r.id} className="border-b border-border hover:bg-background/50 transition-colors">
+        <td className="p-3 sm:p-4 text-xs sm:text-sm">{new Date(r.timestamp).toLocaleString()}</td>
+        <td className="p-3 sm:p-4 font-bold text-text-main text-sm sm:text-base">{r.studentName}</td>
+        <td className="p-3 sm:p-4 text-text-muted text-xs sm:text-sm">{r.school}</td>
+        <td className="p-3 sm:p-4 text-xs sm:text-sm font-bold text-secondary">{r.subject || mapel}</td>
+        <td className="p-3 sm:p-4 text-xs sm:text-sm">{(r as any).materiName || '-'}</td>
+        <td className="p-3 sm:p-4 text-xs sm:text-sm font-mono">{r.token || tokenStr}</td>
+        <td className="p-3 sm:p-4 text-center font-bold text-secondary text-sm sm:text-base">{r.correct}</td>
+        <td className="p-3 sm:p-4 text-center font-bold text-danger text-sm sm:text-base">{r.wrong}</td>
+        <td className="p-3 sm:p-4 text-center font-black text-xl text-primary">{r.score}%</td>
+        <td className="p-3 sm:p-4 text-right">
+          <div className="flex justify-end gap-1 sm:gap-2">
+            {r.answerDetails && r.answerDetails.length > 0 && (
+              <button
+                onClick={() => {
+                  setSelectedResult(r);
+                  setShowAnalysis(true);
+                }}
+                className="p-1.5 sm:p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                title="View Answer Analysis"
+              >
+                <BarChart3 size={16} className="sm:w-[18px] sm:h-[18px]" />
+              </button>
+            )}
+            <button
+              onClick={() => handleEdit(r)}
+              className="p-1.5 sm:p-2 text-text-muted hover:text-warning hover:bg-warning/10 rounded-lg transition-colors"
+              title="Edit Result"
+            >
+              <Edit3 size={16} className="sm:w-[18px] sm:h-[18px]" />
+            </button>
+            <button
+              onClick={() => handleDelete(r.id)}
+              className="p-1.5 sm:p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
+              title="Delete Result"
+            >
+              <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderMobileResultCard = (r: Result) => (
+    <div key={r.id} className="bg-background rounded-xl border border-border p-4 hover:border-primary/50 transition-colors">
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <div className="font-bold text-text-main text-base">{r.studentName}</div>
+          <div className="text-xs text-text-muted">{r.school}</div>
+          <div className="text-[10px] text-text-muted mt-1">{new Date(r.timestamp).toLocaleString()}</div>
+        </div>
+        <div className={`px-3 py-1.5 rounded-lg font-black text-lg ${r.score >= 70 ? 'bg-secondary/10 text-secondary' : r.score >= 50 ? 'bg-warning/10 text-warning' : 'bg-danger/10 text-danger'}`}>
+          {r.score}%
+        </div>
+      </div>
+      <div className="flex justify-between items-center">
+        <div className="flex gap-4 text-xs">
+          <span className="text-secondary font-bold">✓ {r.correct}</span>
+          <span className="text-danger font-bold">✗ {r.wrong}</span>
+        </div>
+        <div className="flex gap-1">
+          {r.answerDetails && r.answerDetails.length > 0 && (
+            <button
+              onClick={() => {
+                setSelectedResult(r);
+                setShowAnalysis(true);
+              }}
+              className="p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            >
+              <BarChart3 size={16} />
+            </button>
+          )}
+          <button
+            onClick={() => handleEdit(r)}
+            className="p-2 text-text-muted hover:text-warning hover:bg-warning/10 rounded-lg transition-colors"
+          >
+            <Edit3 size={16} />
+          </button>
+          <button
+            onClick={() => handleDelete(r.id)}
+            className="p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
   );
+
 
   return (
     <AdminLayout>
@@ -150,22 +278,71 @@ const AdminResults = () => {
           </div>
 
           <div className="card bg-surface">
-            <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="input-field pl-9 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            {/* Top 10 Ranking Board */}
+            {results.length > 0 && (
+              <div className="mb-8 p-6 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-2xl border-2 border-primary/20">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-primary rounded-lg text-white">
+                    <Trophy size={20} />
+                  </div>
+                  <h2 className="text-xl font-black text-text-main uppercase tracking-tight">Top 10 Ranking</h2>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {top10.map((r, idx) => (
+                    <div key={r.id} className="bg-surface p-3 rounded-xl border border-border shadow-sm flex flex-col items-center relative overflow-hidden group hover:border-primary transition-all">
+                      <div className="absolute top-0 right-0 px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-black rounded-bl-lg">#{idx + 1}</div>
+                      <div className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center text-primary font-black mb-2 animate-pulse">
+                        {r.studentName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="font-bold text-center text-xs truncate w-full mb-1">{r.studentName}</div>
+                      <div className="text-primary font-black text-lg leading-none">{r.score}%</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="text-text-muted font-bold text-xs sm:text-sm whitespace-nowrap flex items-center gap-3">
+            )}
+
+            <div className="mb-6 flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Search name or school..."
+                    className="input-field pl-9 text-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <select 
+                    value={sortBy} 
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="input-field py-1 px-3 text-sm bg-surface border-border font-bold text-text-main"
+                    aria-label="Urutkan berdasarkan"
+                  >
+                    <option value="timestamp">Sort: Terbaru</option>
+                    <option value="score">Sort: Nilai Tertinggi</option>
+                    <option value="name">Sort: Nama</option>
+                  </select>
+                  <button
+                    onClick={() => setGroupByToken(!groupByToken)}
+                    className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all border-2 ${
+                      groupByToken 
+                        ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' 
+                        : 'bg-surface text-text-muted border-border hover:border-primary hover:text-primary'
+                    }`}
+                  >
+                    {groupByToken ? 'Grouped by Token ✓' : 'Group by Token'}
+                  </button>
+                </div>
+              </div>
+              <div className="text-text-muted font-bold text-xs sm:text-sm whitespace-nowrap flex items-center gap-3 justify-end">
                 {isLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>}
-                {filteredResults.length} records
+                {filteredResults.length} records total
               </div>
             </div>
+
 
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
@@ -185,126 +362,60 @@ const AdminResults = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredResults.length > 0 ? (
-                    filteredResults.map(r => {
-                      let tokenStr = '';
-                      let mapel = '';
-                      if (r.tokenId) {
-                        const tok = tokens.find(t => t.id === r.tokenId);
-                        tokenStr = tok?.token || '';
-                        mapel = tok?.subject || '';
-                      } else if (r.token) {
-                        tokenStr = r.token;
-                      }
-                      return (
-                        <tr key={r.id} className="border-b border-border hover:bg-background/50 transition-colors">
-                          <td className="p-3 sm:p-4 text-xs sm:text-sm">{new Date(r.timestamp).toLocaleString()}</td>
-                          <td className="p-3 sm:p-4 font-bold text-text-main text-sm sm:text-base">{r.studentName}</td>
-                          <td className="p-3 sm:p-4 text-text-muted text-xs sm:text-sm">{r.school}</td>
-                          <td className="p-3 sm:p-4 text-xs sm:text-sm font-bold text-secondary">{r.subject || mapel}</td>
-                          <td className="p-3 sm:p-4 text-xs sm:text-sm">{(r as any).materiName || '-'}</td>
-                          <td className="p-3 sm:p-4 text-xs sm:text-sm font-mono">{r.token || tokenStr}</td>
-                          <td className="p-3 sm:p-4 text-center font-bold text-secondary text-sm sm:text-base">{r.correct}</td>
-                          <td className="p-3 sm:p-4 text-center font-bold text-danger text-sm sm:text-base">{r.wrong}</td>
-                          <td className="p-3 sm:p-4 text-center font-black text-xl text-primary">{r.score}%</td>
-                          <td className="p-3 sm:p-4 text-right">
-                            <div className="flex justify-end gap-1 sm:gap-2">
-                              {r.answerDetails && r.answerDetails.length > 0 && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedResult(r);
-                                    setShowAnalysis(true);
-                                  }}
-                                  className="p-1.5 sm:p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                                  title="View Answer Analysis"
-                                >
-                                  <BarChart3 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleEdit(r)}
-                                className="p-1.5 sm:p-2 text-text-muted hover:text-warning hover:bg-warning/10 rounded-lg transition-colors"
-                                title="Edit Result"
-                              >
-                                <Edit3 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(r.id)}
-                                className="p-1.5 sm:p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
-                                title="Delete Result"
-                              >
-                                <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                  {!groupByToken ? (
+                    filteredResults.length > 0 ? (
+                      filteredResults.map(r => renderResultRow(r))
+                    ) : (
+                      <tr>
+                        <td colSpan={10} className="p-8 text-center text-text-muted font-bold">No results found.</td>
+                      </tr>
+                    )
                   ) : (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-text-muted">
-                        No results found.
-                      </td>
-                    </tr>
+                    Object.keys(groupedResults).length > 0 ? (
+                      Object.keys(groupedResults).map(tokenName => (
+                        <React.Fragment key={tokenName}>
+                          <tr className="bg-primary/5 border-b border-border">
+                            <td colSpan={10} className="p-3 sm:p-4 font-black text-primary uppercase tracking-widest text-xs">
+                              TOKEN: {tokenName} ({groupedResults[tokenName].length} data)
+                            </td>
+                          </tr>
+                          {groupedResults[tokenName].map(r => renderResultRow(r))}
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={10} className="p-8 text-center text-text-muted font-bold">No results found.</td>
+                      </tr>
+                    )
                   )}
                 </tbody>
               </table>
             </div>
 
-            {/* Mobile Card View */}
-            <div className="md:hidden space-y-3">
-              {filteredResults.length > 0 ? (
-                filteredResults.map(r => (
-                  <div key={r.id} className="bg-background rounded-xl border border-border p-4 hover:border-primary/50 transition-colors">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-bold text-text-main text-base">{r.studentName}</div>
-                        <div className="text-xs text-text-muted">{r.school}</div>
-                        <div className="text-[10px] text-text-muted mt-1">{new Date(r.timestamp).toLocaleString()}</div>
-                      </div>
-                      <div className={`px-3 py-1.5 rounded-lg font-black text-lg ${r.score >= 70 ? 'bg-secondary/10 text-secondary' : r.score >= 50 ? 'bg-warning/10 text-warning' : 'bg-danger/10 text-danger'}`}>
-                        {r.score}%
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div className="flex gap-4 text-xs">
-                        <span className="text-secondary font-bold">✓ {r.correct}</span>
-                        <span className="text-danger font-bold">✗ {r.wrong}</span>
-                      </div>
-                      <div className="flex gap-1">
-                        {r.answerDetails && r.answerDetails.length > 0 && (
-                          <button
-                            onClick={() => {
-                              setSelectedResult(r);
-                              setShowAnalysis(true);
-                            }}
-                            className="p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                          >
-                            <BarChart3 size={16} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleEdit(r)}
-                          className="p-2 text-text-muted hover:text-warning hover:bg-warning/10 rounded-lg transition-colors"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          className="p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
+
+            <div className="md:hidden space-y-3 mt-4">
+              {!groupByToken ? (
+                filteredResults.length > 0 ? (
+                  filteredResults.map(r => renderMobileResultCard(r))
+                ) : (
+                  <div className="text-center p-8 text-text-muted">No results found.</div>
+                )
               ) : (
-                <div className="text-center p-8 text-text-muted">
-                  No results found.
-                </div>
+                Object.keys(groupedResults).length > 0 ? (
+                  Object.keys(groupedResults).map(tokenName => (
+                    <div key={tokenName} className="space-y-3">
+                      <div className="bg-primary/10 px-4 py-2 rounded-lg font-black text-primary text-[10px] uppercase tracking-widest border border-primary/20">
+                        Token: {tokenName}
+                      </div>
+                      {groupedResults[tokenName].map(r => renderMobileResultCard(r))}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center p-8 text-text-muted">No results found.</div>
+                )
               )}
             </div>
+
           </div>
         </>
       ) : selectedResult && selectedResult.answerDetails ? (
