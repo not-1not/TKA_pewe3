@@ -294,10 +294,9 @@ export const api = {
     })) as ExamToken[];
   },
   addToken: async (token: ExamToken) => {
-    const payload: any = {
-      ...token,
-      package: token.package || ''
-    };
+    const payload: any = { ...token };
+    delete payload.materiName; // Virtual field
+    if (payload.package === undefined) payload.package = '';
     let result = await supabase.from('tokens').insert([payload]);
     if (result.error) {
       const message = result.error.message || '';
@@ -312,10 +311,12 @@ export const api = {
     }
   },
   setTokens: async (ts: ExamToken[]) => {
-    const payloads = ts.map(t => ({
-      ...t,
-      package: t.package || ''
-    }));
+    const payloads = ts.map(t => {
+      const p = { ...t };
+      delete p.materiName; // Virtual field
+      if (p.package === undefined) p.package = '';
+      return p;
+    });
     let result = await supabase.from('tokens').upsert(payloads);
     if (result.error) {
       const message = result.error.message || '';
