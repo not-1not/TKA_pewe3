@@ -9,7 +9,14 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showSidebar, setShowSidebar] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(localStorage.getItem('admin-sidebar-collapsed') === 'true');
   const [theme, setTheme] = useState(localStorage.getItem('admin-theme') || 'default');
+
+  const toggleCollapse = () => {
+    const next = !isCollapsed;
+    setIsCollapsed(next);
+    localStorage.setItem('admin-sidebar-collapsed', String(next));
+  };
 
   React.useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -46,17 +53,17 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
       {/* Sidebar - Drawer on Mobile */}
       <aside className={`
         fixed md:relative inset-y-0 left-0 z-50
-        w-64 md:w-64 
+        ${isCollapsed ? 'md:w-20' : 'w-64 md:w-64'} 
         bg-surface border-r-2 border-border flex flex-col shadow-xl
-        transform transition-transform duration-300 ease-in-out
+        transform transition-all duration-300 ease-in-out
         ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         h-full
       `}>
-        {/* Mobile Header */}
-        <div className="p-6 border-b-2 border-border flex items-center justify-between">
+        {/* Mobile Header / Desktop Logo */}
+        <div className={`p-4 border-b-2 border-border flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-black shadow-lg">T</div>
-            <span className="font-black text-xl tracking-wider text-text-main">TKA ADMIN</span>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-black shadow-lg flex-shrink-0">T</div>
+            {!isCollapsed && <span className="font-black text-xl tracking-wider text-text-main truncate">TKA ADMIN</span>}
           </div>
           <button
             onClick={() => setShowSidebar(false)}
@@ -66,7 +73,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto mt-4">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto mt-4 overflow-x-hidden">
           {links.map(link => {
             const active = location.pathname.startsWith(link.to);
             return (
@@ -74,36 +81,48 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
                 key={link.to}
                 to={link.to}
                 onClick={() => setShowSidebar(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${active
-                  ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-[1.02] border-2 border-primary'
+                title={isCollapsed ? link.label : ''}
+                className={`flex items-center gap-3 px-3 py-3 rounded-xl font-bold transition-all ${active
+                  ? 'bg-primary text-white shadow-lg shadow-primary/30 border-2 border-primary'
                   : 'text-text-muted hover:bg-primary/5 hover:text-primary border-2 border-transparent'
-                  }`}
+                  } ${isCollapsed ? 'justify-center' : ''}`}
               >
-                {link.icon}
-                <span className="font-bold">{link.label}</span>
+                <div className="flex-shrink-0">{link.icon}</div>
+                {!isCollapsed && <span className="font-bold truncate">{link.label}</span>}
               </Link>
             )
           })}
         </nav>
 
+        {/* Collapse Toggle Desktop */}
+        <button 
+          onClick={toggleCollapse}
+          className="hidden md:flex items-center justify-center w-8 h-8 bg-surface rounded-full border-2 border-border absolute -right-4 top-16 z-50 hover:border-primary transition-colors text-text-muted hover:text-primary shadow-sm"
+        >
+          <div className={`transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}>
+            <Menu size={14} />
+          </div>
+        </button>
+
         {/* Theme Switcher in Sidebar */}
-        <div className="p-4 border-t-2 border-border">
-          <div className="flex flex-wrap gap-2 mb-4 px-2">
+        <div className="p-3 border-t-2 border-border">
+          <div className={`flex flex-wrap gap-2 mb-4 px-1 ${isCollapsed ? 'justify-center' : ''}`}>
             {themes.map(t => (
               <button
                 key={t.id}
                 onClick={() => setTheme(t.id)}
                 title={t.label}
-                className={`w-8 h-8 rounded-full border-2 transition-all ${t.class} ${theme === t.id ? 'border-primary scale-110 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                className={`w-6 h-6 rounded-full border-2 transition-all ${t.class} ${theme === t.id ? 'border-primary scale-110 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
               />
             ))}
           </div>
           <button
             onClick={() => { logout(); navigate('/admin/login'); }}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-danger hover:bg-danger/10 w-full font-black transition-colors uppercase tracking-widest text-[10px] border-2 border-transparent hover:border-danger/20"
+            title="Logout"
+            className={`flex items-center gap-3 px-3 py-3 rounded-xl text-danger hover:bg-danger/10 w-full font-black transition-colors uppercase tracking-widest text-[10px] border-2 border-transparent hover:border-danger/20 ${isCollapsed ? 'justify-center' : ''}`}
           >
-            <LogOut size={18} />
-            <span>Logout</span>
+            <LogOut size={18} className="flex-shrink-0" />
+            {!isCollapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>

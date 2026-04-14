@@ -1416,7 +1416,9 @@ const QuestionBank = () => {
                                         <button 
                                           type="button"
                                           onClick={() => updateQuestionInState(q.id, { correct_answer: label as any })}
-                                          className={`w-6 h-6 flex items-center justify-center rounded-full font-black flex-shrink-0 transition-colors ${isCorrect ? 'bg-success text-white' : 'bg-text-muted/20 text-text-muted hover:bg-success/50'}`}
+                                          className={`w-7 h-7 flex items-center justify-center rounded-full font-black flex-shrink-0 transition-all border-2 ${isCorrect 
+                                            ? 'bg-success border-success text-white shadow-md scale-110' 
+                                            : 'bg-surface border-text-muted/30 text-text-muted hover:border-success/50 hover:text-success'}`}
                                         >{label}</button>
                                         <input 
                                           type="text" className="input-field py-1 text-xs" 
@@ -1468,11 +1470,13 @@ const QuestionBank = () => {
                                             nextStmts[i] = { ...nextStmts[i], isCorrect: !nextStmts[i].isCorrect };
                                             updateQuestionInState(q.id, { statements: nextStmts });
                                           }}
-                                          className={`px-3 py-1 rounded text-[10px] font-black uppercase transition-colors ${s.isCorrect ? 'bg-success text-white' : 'bg-text-muted/20 text-text-muted'}`}
+                                          className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border-2 ${s.isCorrect 
+                                            ? 'bg-success border-success text-white shadow-sm' 
+                                            : 'bg-danger border-danger text-white shadow-sm'}`}
                                         >{s.isCorrect ? 'Benar' : 'Salah'}</button>
                                       ) : (
                                         <select 
-                                          className="input-field py-1 px-2 text-[10px] w-auto h-auto font-black"
+                                          className="input-field py-1 px-3 text-[10px] w-auto h-auto font-black bg-primary text-white border-primary shadow-sm cursor-pointer hover:bg-primary-hover transition-colors"
                                           value={s.correctAnswer}
                                           onChange={e => {
                                             const nextStmts = [...(q.statements || [])];
@@ -1481,10 +1485,10 @@ const QuestionBank = () => {
                                           }}
                                           title="Select correct answer for statement"
                                         >
-                                          <option value="Sesuai">Sesuai</option>
-                                          <option value="Tidak Sesuai">Tidak Sesuai</option>
-                                          <option value="Benar">Benar</option>
-                                          <option value="Salah">Salah</option>
+                                          <option value="Sesuai" className="bg-surface text-text-main">Sesuai</option>
+                                          <option value="Tidak Sesuai" className="bg-surface text-text-main">Tidak Sesuai</option>
+                                          <option value="Benar" className="bg-surface text-text-main">Benar</option>
+                                          <option value="Salah" className="bg-surface text-text-main">Salah</option>
                                         </select>
                                       )}
                                     </div>
