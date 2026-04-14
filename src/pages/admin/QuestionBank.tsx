@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from './Dashboard';
 import { api, Question, Statement, PaketSoal, QuestionType } from '../../lib/db';
-import { Plus, Trash2, Edit3, X, CheckSquare, Square, Filter, Layers, Copy, Move, Search, Upload, FileQuestion, ChevronsUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2 } from 'lucide-react';
+import { Plus, Trash2, Edit3, X, CheckSquare, Square, Filter, Layers, Copy, Move, Search, Upload, FileQuestion, ChevronsUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Save } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
 
@@ -92,6 +92,7 @@ const QuestionBank = () => {
   const [headerSubjectFilter, setHeaderSubjectFilter] = useState('All');
   const [headerQuestionSearch, setHeaderQuestionSearch] = useState('');
   const [isExpandedAll, setIsExpandedAll] = useState(false);
+  const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set());
 
   // Fetch Paket Soal
   const fetchPaketList = async () => {
@@ -320,6 +321,35 @@ const QuestionBank = () => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+  };
+
+  const updateQuestionInState = (id: string, updates: Partial<Question>) => {
+    const mapper = (q: Question) => q.id === id ? { ...q, ...updates } : q;
+    setQuestions(prev => prev.map(mapper));
+    if (selectedPaketId) {
+      setPaketQuestions(prev => prev.map(mapper));
+    }
+    setModifiedIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkSave = async () => {
+    if (modifiedIds.size === 0) return;
+    setIsLoading(true);
+    try {
+      const changedQuestions = questions.filter(q => modifiedIds.has(q.id));
+      const promises = changedQuestions.map(q => api.updateQuestion(q));
+      await Promise.all(promises);
+      setModifiedIds(new Set());
+      alert(`Successfully saved ${changedQuestions.length} questions!`);
+    } catch (err: any) {
+      alert("Failed to save changes: " + (err?.message || err));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleBulkAdd = async () => {
@@ -914,6 +944,15 @@ const QuestionBank = () => {
               {isExpandedAll ? 'Collapse All' : 'Expand All'}
             </button>
 
+            {modifiedIds.size > 0 && (
+              <button
+                onClick={handleBulkSave}
+                className="btn btn-warning shadow-lg text-white text-sm flex items-center gap-2 animate-pulse"
+              >
+                <Save size={18} /> Save All Changes ({modifiedIds.size})
+              </button>
+            )}
+
             <button
               onClick={toggleSelectAll}
               className="btn btn-outline bg-surface text-text-main border-border text-sm flex items-center gap-2"
@@ -1332,10 +1371,33 @@ const QuestionBank = () => {
                     <td className="p-4">
                       <div className="flex flex-col gap-3">
                         <div className="flex flex-col gap-1">
-                          <p className={`font-bold text-text-main text-sm ${isExpandedAll ? '' : 'line-clamp-1'}`} title={q.question}>{q.question}</p>
-                          {isExpandedAll && q.image && (
-                            <div className="mt-2 p-2 border border-border rounded-lg bg-background inline-block max-w-xs">
-                              <img src={q.image} alt="Question" className="max-h-32 rounded object-contain" />
+                          {isExpandedAll ? (
+                            <textarea
+                              className="input-field min-h-[60px] text-sm font-bold"
+                              value={q.question}
+                              onChange={e => updateQuestionInState(q.id, { question: e.target.value })}
+                              placeholder="Question text..."
+                            />
+                          ) : (
+                            <p className="font-bold text-text-main text-sm line-clamp-1" title={q.question}>{q.question}</p>
+                          )}
+                          
+                          {isExpandedAll && (
+                            <div className="mt-2 flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <Layers size={14} className="text-text-muted" />
+                                <input 
+                                  type="text" className="input-field py-1 text-xs flex-1" 
+                                  placeholder="Main Image URL..."
+                                  value={q.image || ''} 
+                                  onChange={e => updateQuestionInState(q.id, { image: e.target.value })}
+                                />
+                              </div>
+                              {q.image && (
+                                <div className="p-1 border border-border rounded bg-background inline-block self-start">
+                                  <img src={q.image} alt="Question" className="max-h-24 rounded object-contain" />
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1346,16 +1408,37 @@ const QuestionBank = () => {
                               <>
                                 {['a', 'b', 'c', 'd'].map(key => {
                                   const label = key.toUpperCase();
-                                  const opt = q[`option_${key}` as keyof Question] as any;
+                                  const opt = (q[`option_${key}` as keyof Question] as any) || { text: '', image: '' };
                                   const isCorrect = q.correct_answer === label;
                                   return (
-                                    <div key={key} className={`p-2 rounded-lg border text-xs flex flex-col gap-1 ${isCorrect ? 'bg-success/10 border-success/30' : 'bg-surface border-border'}`}>
+                                    <div key={key} className={`p-2 rounded-lg border text-xs flex flex-col gap-2 ${isCorrect ? 'bg-success/10 border-success/30' : 'bg-surface border-border'}`}>
                                       <div className="flex items-center gap-2">
-                                        <span className={`w-5 h-5 flex items-center justify-center rounded-full font-black ${isCorrect ? 'bg-success text-white' : 'bg-text-muted/20 text-text-muted'}`}>{label}</span>
-                                        <span>{typeof opt === 'object' ? opt.text : opt}</span>
+                                        <button 
+                                          type="button"
+                                          onClick={() => updateQuestionInState(q.id, { correct_answer: label as any })}
+                                          className={`w-6 h-6 flex items-center justify-center rounded-full font-black flex-shrink-0 transition-colors ${isCorrect ? 'bg-success text-white' : 'bg-text-muted/20 text-text-muted hover:bg-success/50'}`}
+                                        >{label}</button>
+                                        <input 
+                                          type="text" className="input-field py-1 text-xs" 
+                                          value={typeof opt === 'object' ? opt.text : opt}
+                                          onChange={e => {
+                                            const currentOpt = typeof opt === 'object' ? opt : { text: opt, image: '' };
+                                            updateQuestionInState(q.id, { [`option_${key}`]: { ...currentOpt, text: e.target.value } });
+                                          }}
+                                          placeholder={`Choice ${label}...`}
+                                        />
                                       </div>
+                                      <input 
+                                        type="text" className="input-field py-0.5 text-[10px] opacity-70" 
+                                        placeholder="Image URL..."
+                                        value={typeof opt === 'object' ? opt.image : ''}
+                                        onChange={e => {
+                                          const currentOpt = typeof opt === 'object' ? opt : { text: opt, image: '' };
+                                          updateQuestionInState(q.id, { [`option_${key}`]: { ...currentOpt, image: e.target.value } });
+                                        }}
+                                      />
                                       {typeof opt === 'object' && opt.image && (
-                                        <img src={opt.image} alt={`Option ${label}`} className="max-h-20 rounded object-contain self-start mt-1" />
+                                        <img src={opt.image} alt={`Option ${label}`} className="max-h-16 rounded object-contain self-start" />
                                       )}
                                     </div>
                                   );
@@ -1364,16 +1447,47 @@ const QuestionBank = () => {
                             ) : (
                               <div className="col-span-full space-y-2">
                                 {q.statements?.map((s, i) => (
-                                  <div key={i} className="flex items-center gap-3 p-2 bg-surface rounded-lg border border-border text-xs">
-                                    <span className="font-black text-primary">{i + 1}.</span>
-                                    <span className="flex-1">{s.text}</span>
-                                    <span className={`px-2 py-0.5 rounded font-black uppercase text-[9px] ${
-                                      q.type === 'pilihan_ganda_kompleks' 
-                                        ? (s.isCorrect ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger')
-                                        : 'bg-primary/20 text-primary'
-                                    }`}>
-                                      {q.type === 'pilihan_ganda_kompleks' ? (s.isCorrect ? 'Benar' : 'Salah') : s.correctAnswer}
-                                    </span>
+                                  <div key={i} className="flex flex-col gap-2 p-2 bg-surface rounded-lg border border-border">
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-black text-primary text-xs w-4">{i + 1}.</span>
+                                      <input 
+                                        type="text" className="input-field py-1 text-xs flex-1"
+                                        value={s.text}
+                                        onChange={e => {
+                                          const nextStmts = [...(q.statements || [])];
+                                          nextStmts[i] = { ...nextStmts[i], text: e.target.value };
+                                          updateQuestionInState(q.id, { statements: nextStmts });
+                                        }}
+                                        placeholder="Statement text..."
+                                      />
+                                      {q.type === 'pilihan_ganda_kompleks' ? (
+                                        <button 
+                                          type="button"
+                                          onClick={() => {
+                                            const nextStmts = [...(q.statements || [])];
+                                            nextStmts[i] = { ...nextStmts[i], isCorrect: !nextStmts[i].isCorrect };
+                                            updateQuestionInState(q.id, { statements: nextStmts });
+                                          }}
+                                          className={`px-3 py-1 rounded text-[10px] font-black uppercase transition-colors ${s.isCorrect ? 'bg-success text-white' : 'bg-text-muted/20 text-text-muted'}`}
+                                        >{s.isCorrect ? 'Benar' : 'Salah'}</button>
+                                      ) : (
+                                        <select 
+                                          className="input-field py-1 px-2 text-[10px] w-auto h-auto font-black"
+                                          value={s.correctAnswer}
+                                          onChange={e => {
+                                            const nextStmts = [...(q.statements || [])];
+                                            nextStmts[i] = { ...nextStmts[i], correctAnswer: e.target.value };
+                                            updateQuestionInState(q.id, { statements: nextStmts });
+                                          }}
+                                          title="Select correct answer for statement"
+                                        >
+                                          <option value="Sesuai">Sesuai</option>
+                                          <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                          <option value="Benar">Benar</option>
+                                          <option value="Salah">Salah</option>
+                                        </select>
+                                      )}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -1431,6 +1545,18 @@ const QuestionBank = () => {
             </tbody>
           </table>
         </div>
+        
+        {modifiedIds.size > 0 && (
+          <div className="mt-8 flex justify-center sticky bottom-8 z-10">
+            <button
+              onClick={handleBulkSave}
+              className="btn btn-warning shadow-2xl px-12 py-4 text-white font-black uppercase tracking-widest flex items-center gap-4 animate-pulse group"
+            >
+              <Save size={24} className="group-hover:scale-110 transition-transform" />
+              Save All Changes ({modifiedIds.size})
+            </button>
+          </div>
+        )}
       </div>
       {/* Bulk Add Modal */}
       {showBulkAdd && (
