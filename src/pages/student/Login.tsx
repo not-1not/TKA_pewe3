@@ -109,8 +109,8 @@ const StudentLogin = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 animate-fade-in">
       <div className="text-center mb-6 sm:mb-8">
-        <div className="flex items-center justify-center mb-3 sm:mb-4 text-primary">
-          <BookOpen size={48} className="sm:w-16 sm:h-16" />
+        <div className="flex items-center justify-center mb-3 sm:mb-4">
+          <img src="/logo.png" alt="School Logo" className="w-24 h-24 sm:w-32 sm:h-32 object-contain drop-shadow-md" />
         </div>
         <h1 className="text-2xl sm:text-3xl md:text-4xl text-primary drop-shadow-sm">TKA SD Negeri 3 Purwosari</h1>
         <p className="text-base sm:text-lg md:text-xl text-muted mt-1 sm:mt-2">Welcome students!</p>

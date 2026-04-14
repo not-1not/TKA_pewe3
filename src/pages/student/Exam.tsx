@@ -364,9 +364,14 @@ const Exam = () => {
         <div className="max-w-[1400px] mx-auto flex justify-between items-center h-12 sm:h-16">
           {/* Left Section */}
           <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-            <div className="hidden sm:flex flex-col border-r border-blue-400/50 pr-4 mr-2">
-              <span className="font-bold text-lg lg:text-xl uppercase">TKA CBT</span>
-              <span className="text-blue-200 text-xs">Ujian Komputer</span>
+            <div className="hidden sm:flex items-center border-r border-blue-400/50 pr-4 mr-2 gap-3">
+              <div className="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden">
+                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold text-lg lg:text-xl uppercase">TKA CBT</span>
+                <span className="text-blue-200 text-xs text-nowrap">SDN 3 Purwosari</span>
+              </div>
             </div>
             {/* Mobile: Compact user info */}
             <div className="flex items-center gap-2">

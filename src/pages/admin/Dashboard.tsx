@@ -62,7 +62,9 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
         {/* Mobile Header / Desktop Logo */}
         <div className={`p-4 border-b-2 border-border flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-black shadow-lg flex-shrink-0">T</div>
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center overflow-hidden shadow-lg flex-shrink-0 border border-border">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain p-0.5" />
+            </div>
             {!isCollapsed && <span className="font-black text-xl tracking-wider text-text-main truncate">TKA ADMIN</span>}
           </div>
           <button

@@ -102,4 +102,4 @@ export const syncServerTime = async () => {
   }
 };
 
-export const getServerTime = () => Date.now() + serverTimeOffset;
+export const getServerTime = () => Math.floor(Date.now() + serverTimeOffset);

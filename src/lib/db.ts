@@ -349,8 +349,8 @@ export const api = {
       .select('*')
       .ilike('token', tokenStr)
       .eq('active', true)
-      .single();
-    if (error && error.code !== 'PGRST116') throw new Error(`Failed to fetch token: ${error.message}`); // PGRST116 is "no rows returned"
+      .maybeSingle();
+    if (error) throw new Error(`Failed to fetch token: ${error.message}`);
     return data as ExamToken | null;
   },
 
@@ -567,8 +567,8 @@ export const api = {
     return result;
   },
   getExamState: async (studentId: string) => {
-    const { data, error } = await supabase.from('exam_states').select('*').eq('studentId', studentId).single();
-    if (error && error.code !== 'PGRST116') throw new Error(`Failed to fetch exam state: ${error.message}`);
+    const { data, error } = await supabase.from('exam_states').select('*').eq('studentId', studentId).maybeSingle();
+    if (error) throw new Error(`Failed to fetch exam state: ${error.message}`);
     return data as ExamState | null;
   },
   setExamState: async (state: ExamState) => {
