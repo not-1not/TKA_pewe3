@@ -21,47 +21,46 @@ export const calculateScore = (
   let maxPossibleScore = 0;
 
   questions.forEach(q => {
-    // Calculate max possible points for this question
-    let qPoints = 1;
-    if (q.type === 'pilihan_ganda_kompleks') qPoints = 2;
-    else if (q.type === 'multiple_choice_multiple_answer') qPoints = 3;
-    
-    maxPossibleScore += qPoints;
-
     const ans = answers[q.id];
-    if (!ans) {
-      wrongCount++;
-      return; 
-    }
 
     if (q.type === 'pilihan_ganda') {
-      if (ans === q.correct_answer) {
+      maxPossibleScore += 1;
+      if (ans && ans === q.correct_answer) {
+        totalScore += 1;
         correctCount++;
-        totalScore += qPoints;
       } else {
         wrongCount++;
       }
     } else if (q.type === 'pilihan_ganda_kompleks') {
-      const selectedIndices = (ans as number[]) || [];
       const correctIndices = q.statements?.map((s, i) => s.isCorrect ? i : -1).filter(i => i !== -1) || [];
+      maxPossibleScore += correctIndices.length;
       
-      const isCorrect = selectedIndices.length === correctIndices.length && 
-                        selectedIndices.every(i => correctIndices.includes(i));
+      const selectedIndices = (ans as number[]) || [];
+      let matchCount = 0;
+      selectedIndices.forEach(idx => {
+        if (correctIndices.includes(idx)) matchCount++;
+      });
       
-      if (isCorrect) {
+      totalScore += matchCount;
+      // Mark question as 'fully correct' only if all correct options selected AND no extra wrong ones
+      if (matchCount === correctIndices.length && selectedIndices.length === correctIndices.length) {
         correctCount++;
-        totalScore += qPoints;
       } else {
         wrongCount++;
       }
     } else if (q.type === 'multiple_choice_multiple_answer') {
-      const statementAnswers = (ans as Record<number, string>) || {};
-      const isCorrect = q.statements && q.statements.length > 0 && 
-                        q.statements.every((s, i) => statementAnswers[i] === s.correctAnswer);
+      const statements = q.statements || [];
+      maxPossibleScore += statements.length;
       
-      if (isCorrect) {
+      const statementAnswers = (ans as Record<number, string>) || {};
+      let matchCount = 0;
+      statements.forEach((s, i) => {
+        if (statementAnswers[i] === s.correctAnswer) matchCount++;
+      });
+      
+      totalScore += matchCount;
+      if (matchCount === statements.length && statements.length > 0) {
         correctCount++;
-        totalScore += qPoints;
       } else {
         wrongCount++;
       }
