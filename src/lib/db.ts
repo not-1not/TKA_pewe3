@@ -296,16 +296,20 @@ export const api = {
     })) as ExamToken[];
   },
   addToken: async (token: ExamToken) => {
-    const payload: any = { ...token };
-    delete payload.materiName; // Virtual field
+    const allowed = ['id', 'token', 'durationMinutes', 'questionCount', 'subject', 'package', 'active', 'resultsVisible', 'allowed_subjects', 'allowed_packages', 'materi_id'];
+    const payload: any = {};
+    allowed.forEach(key => {
+      if (token[key as keyof ExamToken] !== undefined) payload[key] = token[key as keyof ExamToken];
+    });
     if (payload.package === undefined) payload.package = '';
+
     let result = await supabase.from('tokens').insert([payload]);
     if (result.error) {
       const message = result.error.message || '';
-      if (message.toLowerCase().includes("could not find the 'package' column")) {
-        // Fallback: remove package field and retry
-        delete payload.package;
-        result = await supabase.from('tokens').insert([payload]);
+      if (message.toLowerCase().includes("could not find the") && message.includes("column")) {
+        const cleanPayload = { ...payload };
+        delete cleanPayload.package;
+        result = await supabase.from('tokens').insert([cleanPayload]);
         if (result.error) throw new Error(`Failed to add token (fallback): ${result.error.message}`);
         return;
       }
@@ -313,17 +317,20 @@ export const api = {
     }
   },
   setTokens: async (ts: ExamToken[]) => {
-    const payloads = ts.map(t => {
-      const p = { ...t };
-      delete p.materiName; // Virtual field
+    const allowed = ['id', 'token', 'durationMinutes', 'questionCount', 'subject', 'package', 'active', 'resultsVisible', 'allowed_subjects', 'allowed_packages', 'materi_id'];
+    const payloads = ts.map(token => {
+      const p: any = {};
+      allowed.forEach(key => {
+        if (token[key as keyof ExamToken] !== undefined) p[key] = token[key as keyof ExamToken];
+      });
       if (p.package === undefined) p.package = '';
       return p;
     });
+
     let result = await supabase.from('tokens').upsert(payloads);
     if (result.error) {
       const message = result.error.message || '';
-      if (message.toLowerCase().includes("could not find the 'package' column")) {
-        // Fallback: remove package field and retry
+      if (message.toLowerCase().includes("could not find the") && message.includes("column")) {
         const cleanPayloads = payloads.map(p => {
           const cp = { ...p };
           delete cp.package;
