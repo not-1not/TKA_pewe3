@@ -172,6 +172,13 @@ const Tokens = () => {
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
+    
+    const activeSelected = tokens.filter(t => selectedIds.includes(t.id) && t.active);
+    if (activeSelected.length > 0) {
+      alert(`Cannot delete tokens while they are still active. Please deactivate the following tokens first: ${activeSelected.map(t => t.token).join(', ')}`);
+      return;
+    }
+
     if (confirm(`Delete ${selectedIds.length} selected tokens?`)) {
       setIsLoading(true);
       try {
@@ -184,6 +191,27 @@ const Tokens = () => {
           alert("Failed to delete tokens: " + (err.message || String(err)));
       } finally {
           setIsLoading(false);
+      }
+    }
+  };
+
+  const handleDeleteToken = async (token: ExamToken) => {
+    if (token.active) {
+      alert("Cannot delete an active token. Please stop/deactivate it first.");
+      return;
+    }
+
+    if (confirm(`Are you sure you want to delete token "${token.token}"?`)) {
+      setIsLoading(true);
+      try {
+        const remaining = tokens.filter(t => t.id !== token.id);
+        await api.setTokens(remaining);
+        await fetchData();
+      } catch (err: any) {
+        console.error("Delete token error:", err);
+        alert("Failed to delete token: " + (err.message || String(err)));
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -562,6 +590,19 @@ const Tokens = () => {
                       title="Edit token settings"
                     >
                       <Edit3 size={14} className="inline mr-1" /> Edit
+                    </button>
+
+                    <button 
+                      onClick={() => handleDeleteToken(t)}
+                      disabled={t.active}
+                      className={`btn text-[10px] font-black uppercase py-2 px-3 shadow-sm border-2 transition-all ${
+                        t.active 
+                        ? 'border-border text-text-muted opacity-40 cursor-not-allowed' 
+                        : 'border-danger/20 text-danger hover:bg-danger hover:text-white'
+                      }`}
+                      title={t.active ? "Deactivate to enable deletion" : "Delete token"}
+                    >
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 ))
