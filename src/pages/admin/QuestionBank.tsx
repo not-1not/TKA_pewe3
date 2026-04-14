@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from './Dashboard';
 import { api, Question, Statement, PaketSoal, QuestionType } from '../../lib/db';
-import { Plus, Trash2, Edit3, X, CheckSquare, Square, Filter, Layers, Copy, Move, Search, Upload, FileQuestion, ChevronsUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, Edit3, X, CheckSquare, Square, Filter, Layers, Copy, Move, Search, Upload, FileQuestion, ChevronsUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
 
@@ -92,6 +91,7 @@ const QuestionBank = () => {
   const [headerPackageFilter, setHeaderPackageFilter] = useState('All');
   const [headerSubjectFilter, setHeaderSubjectFilter] = useState('All');
   const [headerQuestionSearch, setHeaderQuestionSearch] = useState('');
+  const [isExpandedAll, setIsExpandedAll] = useState(false);
 
   // Fetch Paket Soal
   const fetchPaketList = async () => {
@@ -906,6 +906,15 @@ const QuestionBank = () => {
 
           <div className="flex gap-3">
             <button
+              onClick={() => setIsExpandedAll(!isExpandedAll)}
+              className={`btn text-sm flex items-center gap-2 ${isExpandedAll ? 'btn-secondary shadow-md' : 'btn-outline bg-surface text-text-main border-border'}`}
+              title={isExpandedAll ? "Collapse details" : "Expand all questions to see full text and options"}
+            >
+              {isExpandedAll ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              {isExpandedAll ? 'Collapse All' : 'Expand All'}
+            </button>
+
+            <button
               onClick={toggleSelectAll}
               className="btn btn-outline bg-surface text-text-main border-border text-sm flex items-center gap-2"
             >
@@ -1321,20 +1330,69 @@ const QuestionBank = () => {
                       </span>
                     </td>
                     <td className="p-4">
-                      <div className="flex flex-col gap-1">
-                        <p className="font-bold text-text-main text-sm line-clamp-1" title={q.question}>{q.question}</p>
-                        <div className="flex gap-2">
-                          {q.image && (
-                            <span className="text-[9px] text-primary flex items-center gap-1 font-black uppercase">
-                              <Layers size={10} /> Image
-                            </span>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
+                          <p className={`font-bold text-text-main text-sm ${isExpandedAll ? '' : 'line-clamp-1'}`} title={q.question}>{q.question}</p>
+                          {isExpandedAll && q.image && (
+                            <div className="mt-2 p-2 border border-border rounded-lg bg-background inline-block max-w-xs">
+                              <img src={q.image} alt="Question" className="max-h-32 rounded object-contain" />
+                            </div>
                           )}
-                          <span className="text-[9px] text-text-muted font-bold uppercase truncate max-w-[200px]">
-                            {q.type === 'pilihan_ganda' 
-                              ? `${typeof q.option_a === 'object' ? (q.option_a as any).text : q.option_a}, ${typeof q.option_b === 'object' ? (q.option_b as any).text : q.option_b}...`
-                              : `${q.statements?.length} Statement`}
-                          </span>
                         </div>
+                        
+                        {isExpandedAll ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2 p-3 bg-background/50 rounded-xl border border-border/50">
+                            {q.type === 'pilihan_ganda' ? (
+                              <>
+                                {['a', 'b', 'c', 'd'].map(key => {
+                                  const label = key.toUpperCase();
+                                  const opt = q[`option_${key}` as keyof Question] as any;
+                                  const isCorrect = q.correct_answer === label;
+                                  return (
+                                    <div key={key} className={`p-2 rounded-lg border text-xs flex flex-col gap-1 ${isCorrect ? 'bg-success/10 border-success/30' : 'bg-surface border-border'}`}>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-5 h-5 flex items-center justify-center rounded-full font-black ${isCorrect ? 'bg-success text-white' : 'bg-text-muted/20 text-text-muted'}`}>{label}</span>
+                                        <span>{typeof opt === 'object' ? opt.text : opt}</span>
+                                      </div>
+                                      {typeof opt === 'object' && opt.image && (
+                                        <img src={opt.image} alt={`Option ${label}`} className="max-h-20 rounded object-contain self-start mt-1" />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            ) : (
+                              <div className="col-span-full space-y-2">
+                                {q.statements?.map((s, i) => (
+                                  <div key={i} className="flex items-center gap-3 p-2 bg-surface rounded-lg border border-border text-xs">
+                                    <span className="font-black text-primary">{i + 1}.</span>
+                                    <span className="flex-1">{s.text}</span>
+                                    <span className={`px-2 py-0.5 rounded font-black uppercase text-[9px] ${
+                                      q.type === 'pilihan_ganda_kompleks' 
+                                        ? (s.isCorrect ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger')
+                                        : 'bg-primary/20 text-primary'
+                                    }`}>
+                                      {q.type === 'pilihan_ganda_kompleks' ? (s.isCorrect ? 'Benar' : 'Salah') : s.correctAnswer}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            {q.image && (
+                              <span className="text-[9px] text-primary flex items-center gap-1 font-black uppercase">
+                                <Layers size={10} /> Image
+                              </span>
+                            )}
+                            <span className="text-[9px] text-text-muted font-bold uppercase truncate max-w-[200px]">
+                              {q.type === 'pilihan_ganda' 
+                                ? `${typeof q.option_a === 'object' ? (q.option_a as any).text : q.option_a}, ${typeof q.option_b === 'object' ? (q.option_b as any).text : q.option_b}...`
+                                : `${q.statements?.length} Statement`}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="p-4">

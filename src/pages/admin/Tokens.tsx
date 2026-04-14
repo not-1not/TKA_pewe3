@@ -589,38 +589,105 @@ const Tokens = () => {
               </button>
             </div>
 
-            <div className="bg-background/50 p-3 rounded-lg border border-border mb-4">
-              <p className="text-xs font-bold text-text-muted mb-1 uppercase tracking-wider">Token</p>
-              <p className="font-black text-xl tracking-[0.1em] text-primary">{editingToken.token}</p>
-            </div>
-
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1 pr-2 custom-scrollbar">
               <div className="input-group">
-                <label className="input-label text-xs" htmlFor="edit-subject">Subject</label>
-                <select
-                  id="edit-subject"
-                  className="input-field"
-                  value={editingToken.subject || ''}
-                  onChange={e => setEditingToken({ ...editingToken, subject: e.target.value })}
-                  aria-label="Edit token subject"
-                >
-                  <option value="">All / Mixed</option>
-                  {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <label className="input-label text-xs" htmlFor="edit-token">Token Code</label>
+                <input
+                  id="edit-token"
+                  type="text"
+                  className="input-field font-black tracking-widest text-lg"
+                  value={editingToken.token}
+                  onChange={e => setEditingToken({ ...editingToken, token: e.target.value.toUpperCase() })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="input-group">
+                  <label className="input-label text-xs" htmlFor="edit-subject">Base Subject</label>
+                  <select
+                    id="edit-subject"
+                    className="input-field"
+                    value={editingToken.subject || ''}
+                    onChange={e => setEditingToken({ ...editingToken, subject: e.target.value })}
+                  >
+                    <option value="">All / Mixed</option>
+                    {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label text-xs" htmlFor="edit-materi">Materi (Relasi)</label>
+                  <select 
+                    id="edit-materi"
+                    className="input-field"
+                    value={editingToken.materi_id || ''}
+                    onChange={(e) => setEditingToken({ ...editingToken, materi_id: e.target.value || undefined })}
+                  >
+                    <option value="">No Materi / All</option>
+                    {availableMateri.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="input-group">
-                <label className="input-label text-xs" htmlFor="edit-package">Package</label>
+                <label className="input-label text-xs" htmlFor="edit-package">Package Filter</label>
                 <select
                   id="edit-package"
                   className="input-field"
                   value={editingToken.package || ''}
                   onChange={e => setEditingToken({ ...editingToken, package: e.target.value })}
-                  aria-label="Edit token package"
                 >
                   <option value="">All Packages</option>
                   {availablePackages.filter(p => p !== 'All').map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
+              </div>
+
+              {/* Allowed Subjects Multi-Select */}
+              <div className="space-y-2">
+                <label className="input-label text-[10px] font-black uppercase text-primary">Allowed Subjects (Selection)</label>
+                <div className="flex flex-wrap gap-1.5 p-2 bg-background border border-border rounded-lg max-h-[100px] overflow-y-auto">
+                  {availableSubjects.map(s => {
+                    const isSelected = (editingToken.allowed_subjects || []).includes(s);
+                    return (
+                      <button
+                        key={s} type="button"
+                        onClick={() => {
+                          const current = editingToken.allowed_subjects || [];
+                          const next = current.includes(s) ? current.filter(x => x !== s) : [...current, s];
+                          setEditingToken({ ...editingToken, allowed_subjects: next.length > 0 ? next : undefined });
+                        }}
+                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${isSelected ? 'bg-primary border-primary text-white shadow-sm' : 'bg-surface border-border text-text-muted hover:border-primary/30'}`}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Allowed Packages Multi-Select */}
+              <div className="space-y-2">
+                <label className="input-label text-[10px] font-black uppercase text-secondary">Allowed Packages (Selection)</label>
+                <div className="flex flex-wrap gap-1.5 p-2 bg-background border border-border rounded-lg max-h-[100px] overflow-y-auto">
+                  {availablePackages.filter(p => p !== 'All').map(p => {
+                    const isSelected = (editingToken.allowed_packages || []).includes(p);
+                    return (
+                      <button
+                        key={p} type="button"
+                        onClick={() => {
+                          const current = editingToken.allowed_packages || [];
+                          const next = current.includes(p) ? current.filter(x => x !== p) : [...current, p];
+                          setEditingToken({ ...editingToken, allowed_packages: next.length > 0 ? next : undefined });
+                        }}
+                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${isSelected ? 'bg-secondary border-secondary text-white shadow-sm' : 'bg-surface border-border text-text-muted hover:border-secondary/30'}`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
