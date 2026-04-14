@@ -20,6 +20,8 @@ const Tokens = () => {
   // Pengaturan baru:
   const [allowedSubjects, setAllowedSubjects] = useState<string[]>([]);
   const [allowedPackages, setAllowedPackages] = useState<string[]>([]);
+  const [randQs, setRandQs] = useState(true);
+  const [randOpts, setRandOpts] = useState(true);
   
   const fetchData = async () => {
     setIsLoading(true);
@@ -89,6 +91,8 @@ const Tokens = () => {
             subject: subject,
             package: selectedPackage === 'All' ? '' : selectedPackage,
             active: true,
+            randomizeQuestions: randQs,
+            randomizeOptions: randOpts,
             allowed_subjects: allowedSubjects.length > 0 ? allowedSubjects : undefined,
             allowed_packages: allowedPackages.length > 0 ? allowedPackages : undefined,
             materi_id: selectedMateriId || undefined
@@ -429,6 +433,21 @@ const Tokens = () => {
                     </select>
                   </div>
                 </div>
+
+                <div className="flex gap-4 mt-2">
+                   <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${randQs ? 'bg-secondary' : 'bg-text-muted/30'}`} onClick={() => setRandQs(!randQs)}>
+                         <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${randQs ? 'left-6' : 'left-1'}`} />
+                      </div>
+                      <span className="text-[10px] font-black uppercase text-text-muted group-hover:text-text-main transition-colors">Acak Soal</span>
+                   </label>
+                   <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${randOpts ? 'bg-secondary' : 'bg-text-muted/30'}`} onClick={() => setRandOpts(!randOpts)}>
+                         <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${randOpts ? 'left-6' : 'left-1'}`} />
+                      </div>
+                      <span className="text-[10px] font-black uppercase text-text-muted group-hover:text-text-main transition-colors">Acak Jawaban</span>
+                   </label>
+                </div>
               </div>
 
               <div className="space-y-4 pt-4 border-t border-border mt-4">
@@ -754,24 +773,42 @@ const Tokens = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-background border border-border">
-                <label className="flex items-center gap-2 cursor-pointer flex-1">
+              <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-background border border-border">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={editingToken.active}
                     onChange={e => setEditingToken({ ...editingToken, active: e.target.checked })}
                     className="w-4 h-4 accent-secondary"
                   />
-                  <span className="text-sm font-bold">Active</span>
+                  <span className="text-[10px] font-black uppercase">Active</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer flex-1">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={editingToken.resultsVisible || false}
                     onChange={e => setEditingToken({ ...editingToken, resultsVisible: e.target.checked })}
                     className="w-4 h-4 accent-primary"
                   />
-                  <span className="text-sm font-bold">Show Results</span>
+                  <span className="text-[10px] font-black uppercase">Results</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingToken.randomizeQuestions !== false}
+                    onChange={e => setEditingToken({ ...editingToken, randomizeQuestions: e.target.checked })}
+                    className="w-4 h-4 accent-warning"
+                  />
+                  <span className="text-[10px] font-black uppercase">Rand Qs</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingToken.randomizeOptions !== false}
+                    onChange={e => setEditingToken({ ...editingToken, randomizeOptions: e.target.checked })}
+                    className="w-4 h-4 accent-warning"
+                  />
+                  <span className="text-[10px] font-black uppercase">Rand Opts</span>
                 </label>
               </div>
             </div>

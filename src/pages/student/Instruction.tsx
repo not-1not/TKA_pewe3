@@ -50,18 +50,23 @@ const Instruction = () => {
            ? filteredBySubject.filter(q => q.package === tokenInfo.package)
            : filteredBySubject;
 
-        const shuffled = shuffleArray([...filteredByPackage]).slice(0, tokenInfo.questionCount);
-        const questionOrder = shuffled.map(q => q.id);
+        const shouldShuffleQs = tokenInfo.randomizeQuestions !== false;
+        const shouldShuffleOpts = tokenInfo.randomizeOptions !== false;
+
+        const selectedQs = shouldShuffleQs 
+           ? shuffleArray([...filteredByPackage]).slice(0, tokenInfo.questionCount)
+           : filteredByPackage.slice(0, tokenInfo.questionCount);
+        
+        const questionOrder = selectedQs.map(q => q.id);
         const optionOrder: Record<string, any> = {};
-        shuffled.forEach(q => {
+        selectedQs.forEach(q => {
           if (q.type === 'pilihan_ganda') {
-            // For PG: shuffle option letters A, B, C, D
-            optionOrder[q.id] = shuffleArray(['A', 'B', 'C', 'D']);
+            const letters = ['A', 'B', 'C', 'D'];
+            optionOrder[q.id] = shouldShuffleOpts ? shuffleArray([...letters]) : letters;
           } else {
-            // For PK/MCMA: shuffle statement indices
             const statementCount = q.statements?.length || 0;
-            const shuffledIndices = shuffleArray(Array.from({length: statementCount}, (_, i) => i));
-            optionOrder[q.id] = shuffledIndices;
+            const indices = Array.from({length: statementCount}, (_, i) => i);
+            optionOrder[q.id] = shouldShuffleOpts ? shuffleArray([...indices]) : indices;
           }
         });
         

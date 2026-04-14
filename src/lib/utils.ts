@@ -68,11 +68,12 @@ export const calculateScore = (
     }
   });
 
+  const finalScore = maxPossibleScore > 0 ? Math.round((totalScore / maxPossibleScore) * 100) : 0;
   return { 
     correct: correctCount, 
     wrong: wrongCount, 
-    score: totalScore,
-    maxScore: maxPossibleScore
+    score: finalScore,
+    maxScore: 100
   };
 };
 

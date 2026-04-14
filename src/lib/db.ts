@@ -83,6 +83,8 @@ export type ExamToken = {
   package?: string;
   active: boolean;
   resultsVisible?: boolean; // Admin dapat menampilkan/menyembunyikan hasil siswa
+  randomizeQuestions?: boolean;
+  randomizeOptions?: boolean;
   allowed_subjects?: string[]; 
   allowed_packages?: string[]; 
   materi_id?: string;
