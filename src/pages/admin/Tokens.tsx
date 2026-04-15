@@ -434,19 +434,35 @@ const Tokens = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-4 mt-2">
-                   <label className="flex items-center gap-2 cursor-pointer group">
-                      <div className={`w-10 h-5 rounded-full relative transition-colors ${randQs ? 'bg-secondary' : 'bg-text-muted/30'}`} onClick={() => setRandQs(!randQs)}>
-                         <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${randQs ? 'left-6' : 'left-1'}`} />
-                      </div>
-                      <span className="text-[10px] font-black uppercase text-text-muted group-hover:text-text-main transition-colors">Acak Soal</span>
-                   </label>
-                   <label className="flex items-center gap-2 cursor-pointer group">
-                      <div className={`w-10 h-5 rounded-full relative transition-colors ${randOpts ? 'bg-secondary' : 'bg-text-muted/30'}`} onClick={() => setRandOpts(!randOpts)}>
-                         <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${randOpts ? 'left-6' : 'left-1'}`} />
-                      </div>
-                      <span className="text-[10px] font-black uppercase text-text-muted group-hover:text-text-main transition-colors">Acak Jawaban</span>
-                   </label>
+                <div className="flex flex-col gap-3 mt-2">
+                   <div className="flex items-center justify-between bg-background p-3 rounded-lg border border-border">
+                      <span className="text-[10px] font-black uppercase text-text-muted">Urutan Soal</span>
+                      <button 
+                        type="button"
+                        onClick={() => setRandQs(!randQs)}
+                        className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all border-2 ${
+                          randQs 
+                          ? 'bg-secondary/10 border-secondary text-secondary' 
+                          : 'bg-primary/10 border-primary text-primary'
+                        }`}
+                      >
+                         {randQs ? 'Acak (Random)' : 'Urut Sesuai Nomor'}
+                      </button>
+                   </div>
+                   <div className="flex items-center justify-between bg-background p-3 rounded-lg border border-border">
+                      <span className="text-[10px] font-black uppercase text-text-muted">Urutan Jawaban</span>
+                      <button 
+                        type="button"
+                        onClick={() => setRandOpts(!randOpts)}
+                        className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all border-2 ${
+                          randOpts 
+                          ? 'bg-secondary/10 border-secondary text-secondary' 
+                          : 'bg-primary/10 border-primary text-primary'
+                        }`}
+                      >
+                         {randOpts ? 'Acak (Random)' : 'Tetap (Fix)'}
+                      </button>
+                   </div>
                 </div>
               </div>
 
@@ -773,43 +789,63 @@ const Tokens = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-background border border-border">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingToken.active}
-                    onChange={e => setEditingToken({ ...editingToken, active: e.target.checked })}
-                    className="w-4 h-4 accent-secondary"
-                  />
-                  <span className="text-[10px] font-black uppercase">Active</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingToken.resultsVisible || false}
-                    onChange={e => setEditingToken({ ...editingToken, resultsVisible: e.target.checked })}
-                    className="w-4 h-4 accent-primary"
-                  />
-                  <span className="text-[10px] font-black uppercase">Results</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingToken.randomizeQuestions !== false}
-                    onChange={e => setEditingToken({ ...editingToken, randomizeQuestions: e.target.checked })}
-                    className="w-4 h-4 accent-warning"
-                  />
-                  <span className="text-[10px] font-black uppercase">Rand Qs</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingToken.randomizeOptions !== false}
-                    onChange={e => setEditingToken({ ...editingToken, randomizeOptions: e.target.checked })}
-                    className="w-4 h-4 accent-warning"
-                  />
-                  <span className="text-[10px] font-black uppercase">Rand Opts</span>
-                </label>
+              <div className="grid grid-cols-1 gap-2 p-3 rounded-lg bg-background border border-border">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-text-muted">Urutan Soal</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingToken({ ...editingToken, randomizeQuestions: !editingToken.randomizeQuestions })}
+                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all border-2 ${
+                      editingToken.randomizeQuestions !== false
+                      ? 'bg-secondary/10 border-secondary text-secondary'
+                      : 'bg-primary/10 border-primary text-primary'
+                    }`}
+                  >
+                    {editingToken.randomizeQuestions !== false ? 'Acak' : 'Urut Nomor'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between border-t border-border/50 pt-2">
+                  <span className="text-[10px] font-black uppercase text-text-muted">Urutan Jawaban</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingToken({ ...editingToken, randomizeOptions: !editingToken.randomizeOptions })}
+                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all border-2 ${
+                      editingToken.randomizeOptions !== false
+                      ? 'bg-secondary/10 border-secondary text-secondary'
+                      : 'bg-primary/10 border-primary text-primary'
+                    }`}
+                  >
+                    {editingToken.randomizeOptions !== false ? 'Acak' : 'Tetap (Fix)'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between border-t border-border/50 pt-2">
+                  <span className="text-[10px] font-black uppercase text-text-muted">Status Ujian</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingToken({ ...editingToken, active: !editingToken.active })}
+                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all border-2 ${
+                      editingToken.active
+                      ? 'bg-green-500/10 border-green-500 text-green-600'
+                      : 'bg-red-500/10 border-red-500 text-red-600'
+                    }`}
+                  >
+                    {editingToken.active ? 'Aktif' : 'Non-Aktif'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between border-t border-border/50 pt-2">
+                  <span className="text-[10px] font-black uppercase text-text-muted">Hasil Siswa</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingToken({ ...editingToken, resultsVisible: !editingToken.resultsVisible })}
+                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all border-2 ${
+                      editingToken.resultsVisible
+                      ? 'bg-blue-500/10 border-blue-500 text-blue-600'
+                      : 'bg-yellow-500/10 border-yellow-500 text-yellow-600'
+                    }`}
+                  >
+                    {editingToken.resultsVisible ? 'Ditampilkan' : 'Disembunyikan'}
+                  </button>
+                </div>
               </div>
             </div>
 

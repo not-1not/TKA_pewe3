@@ -356,7 +356,7 @@ export const api = {
 
   // --- Questions ---
   getQuestions: async () => {
-    const { data, error } = await supabase.from('questions').select('*');
+    const { data, error } = await supabase.from('questions').select('*').order('created_at', { ascending: true });
     if (error) throw new Error(`Failed to fetch questions: ${error.message}`);
     return (data || []).map(mapQuestionFromDb);
   },
