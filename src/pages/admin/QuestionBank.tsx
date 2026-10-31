@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from './Dashboard';
 import { api, Question, Statement, PaketSoal, QuestionType } from '../../lib/db';
-import { Plus, Trash2, Edit3, X, CheckSquare, Square, Filter, Layers, Copy, Move, Search, Upload, FileQuestion, ChevronsUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Save } from 'lucide-react';
+import { Plus, Trash2, Edit3, X, CheckSquare, Square, Filter, Layers, Copy, Move, Search, Upload, FileQuestion, ChevronsUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Save, RotateCcw, Download, ArrowLeft, AlertTriangle, FileJson } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
 
@@ -94,6 +94,24 @@ const QuestionBank = () => {
   const [isExpandedAll, setIsExpandedAll] = useState(false);
   const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set());
 
+  // Trash & Backup State
+  const [activeTab, setActiveTab] = useState<'bank' | 'trash'>('bank');
+  const [trashQuestions, setTrashQuestions] = useState<Question[]>([]);
+  const [selectedTrashIds, setSelectedTrashIds] = useState<string[]>([]);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [pendingRestoreText, setPendingRestoreText] = useState<string>('');
+  const [backupRestoreMode, setBackupRestoreMode] = useState<'merge' | 'replace'>('merge');
+  const backupFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const fetchTrashQuestions = async () => {
+    try {
+      const data = await api.getTrashQuestions();
+      setTrashQuestions(data);
+    } catch (err) {
+      console.warn("Gagal memuat tong sampah:", err);
+    }
+  };
+
   // Fetch Paket Soal
   const fetchPaketList = async () => {
     setPaketLoading(true);
@@ -117,7 +135,7 @@ const QuestionBank = () => {
       setPaketQuestionsLoading(true);
       api.getQuestionsByPaket(selectedPaketId)
         .then(setPaketQuestions)
-        .catch(e => setPaketQuestions([]))
+        .catch(() => setPaketQuestions([]))
         .finally(() => setPaketQuestionsLoading(false));
     } else {
       setPaketQuestions([]);
@@ -161,6 +179,7 @@ const QuestionBank = () => {
       setSubjects(uniqueSubjects);
       const uniquePackages = ['All', ...Array.from(new Set(data.map(q => q.package).filter(Boolean)))];
       setPackages(uniquePackages);
+      await fetchTrashQuestions();
     } catch (err) {
       console.error(err);
     } finally {
@@ -284,16 +303,144 @@ const QuestionBank = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Delete this question?")) {
+    if (confirm("Pindahkan soal ini ke Tong Sampah? Soal tidak akan muncul di ujian siswa dan dapat dipulihkan sewaktu-waktu.")) {
       setIsLoading(true);
       try {
-        await api.deleteQuestion(id);
+        await api.softDeleteQuestion(id);
         await fetchQuestions();
-      } catch (err) {
-        alert("Failed to delete question");
+      } catch (err: any) {
+        alert("Gagal memindahkan soal ke tong sampah: " + (err?.message || err));
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleRestoreQuestion = async (id: string) => {
+    setIsLoading(true);
+    try {
+      await api.restoreQuestion(id);
+      await fetchQuestions();
+      alert("Soal berhasil dipulihkan kembali ke Bank Soal!");
+    } catch (err: any) {
+      alert("Gagal memulihkan soal: " + (err?.message || err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRestoreBatch = async () => {
+    if (selectedTrashIds.length === 0) return;
+    setIsLoading(true);
+    try {
+      await api.restoreQuestions(selectedTrashIds);
+      setSelectedTrashIds([]);
+      await fetchQuestions();
+      alert(`${selectedTrashIds.length} soal berhasil dipulihkan ke Bank Soal!`);
+    } catch (err: any) {
+      alert("Gagal memulihkan soal: " + (err?.message || err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    if (confirm("⚠️ PERINGATAN KETAT: Soal ini akan DIHAPUS PERMANEN dari database dan tidak dapat dipulihkan lagi. Lanjutkan?")) {
+      setIsLoading(true);
+      try {
+        await api.permanentDeleteQuestion(id);
+        await fetchQuestions();
+      } catch (err: any) {
+        alert("Gagal menghapus permanen: " + (err?.message || err));
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handlePermanentDeleteBatch = async () => {
+    if (selectedTrashIds.length === 0) return;
+    if (confirm(`⚠️ PERINGATAN KETAT: ${selectedTrashIds.length} soal terpilih akan DIHAPUS PERMANEN dari database. Tindakan ini TIDAK BISA DIBATALKAN. Lanjutkan?`)) {
+      setIsLoading(true);
+      try {
+        await api.permanentDeleteQuestions(selectedTrashIds);
+        setSelectedTrashIds([]);
+        await fetchQuestions();
+        alert("Soal berhasil dihapus permanen.");
+      } catch (err: any) {
+        alert("Gagal menghapus permanen: " + (err?.message || err));
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    if (trashQuestions.length === 0) return;
+    if (confirm(`⚠️ PERINGATAN KETAT: Seluruh (${trashQuestions.length}) butir soal di dalam Tong Sampah akan DIHAPUS PERMANEN dari database selamanya. Lanjutkan?`)) {
+      setIsLoading(true);
+      try {
+        await api.emptyTrash();
+        setSelectedTrashIds([]);
+        await fetchQuestions();
+        alert("Tong sampah berhasil dikosongkan.");
+      } catch (err: any) {
+        alert("Gagal mengosongkan tong sampah: " + (err?.message || err));
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // Backup & Restore handlers
+  const handleExportBackup = async () => {
+    setIsLoading(true);
+    try {
+      const jsonString = await api.exportQuestionsBackup();
+      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const today = new Date().toISOString().split('T')[0];
+      link.download = `backup_bank_soal_tka_${today}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      alert("✅ Berhasil mengunduh file cadangan bank soal! Simpan file ini di folder komputer Anda sebagai arsip aman.");
+    } catch (err: any) {
+      alert("Gagal mencadangkan bank soal: " + (err?.message || err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRestoreFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      setPendingRestoreText(content);
+      setShowRestoreModal(true);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleExecuteRestore = async () => {
+    if (!pendingRestoreText) return;
+    setIsLoading(true);
+    try {
+      const res = await api.importQuestionsBackup(pendingRestoreText, backupRestoreMode);
+      setShowRestoreModal(false);
+      setPendingRestoreText('');
+      await fetchQuestions();
+      alert(`✅ Berhasil memulihkan ${res.imported} butir soal ke dalam database!`);
+    } catch (err: any) {
+      alert("Gagal memulihkan cadangan: " + (err?.message || err));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -467,16 +614,16 @@ const QuestionBank = () => {
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (confirm(`Delete ${selectedIds.length} selected questions?`)) {
+    if (confirm(`Pindahkan ${selectedIds.length} soal terpilih ke Tong Sampah? Soal dapat dipulihkan sewaktu-waktu.`)) {
       setIsLoading(true);
       try {
-        // Use deleteQuestions API for batch deletion
-        await api.deleteQuestions(selectedIds);
+        await api.softDeleteQuestions(selectedIds);
         await fetchQuestions();
         setSelectedIds([]);
-      } catch (err) {
+        alert(`${selectedIds.length} soal berhasil dipindahkan ke Tong Sampah.`);
+      } catch (err: any) {
         console.error("Failed to delete questions:", err);
-        alert("Failed to delete questions");
+        alert("Gagal memindahkan ke tong sampah: " + (err?.message || err));
       } finally {
         setIsLoading(false);
       }
@@ -485,16 +632,16 @@ const QuestionBank = () => {
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected questions? This action cannot be undone.`)) return;
+    if (!confirm(`Pindahkan ${selectedIds.length} soal terpilih ke Tong Sampah? Soal dapat dipulihkan sewaktu-waktu.`)) return;
 
     setIsLoading(true);
     try {
-      await api.deleteQuestions(selectedIds);
+      await api.softDeleteQuestions(selectedIds);
       await fetchQuestions();
       setSelectedIds([]);
-      alert("Questions deleted successfully");
-    } catch (err) {
-      alert("Failed to delete questions");
+      alert("Soal berhasil dipindahkan ke Tong Sampah");
+    } catch (err: any) {
+      alert("Gagal memindahkan ke tong sampah: " + (err?.message || err));
     } finally {
       setIsLoading(false);
     }
@@ -836,44 +983,248 @@ const QuestionBank = () => {
           </h1>
           <p className="text-sm text-text-muted font-bold">Manage and organize your exam material</p>
         </div>
-        <div className="flex gap-3 w-full md:w-auto">
-          <button onClick={() => setShowBulkAdd(true)} className="btn btn-outline border-primary text-primary hover:bg-primary/5 shadow-sm flex-1 md:flex-none">
-            <Upload size={20} /> Bulk Add
-          </button>
+        <div className="flex gap-2 w-full md:w-auto flex-wrap">
+          <input
+            type="file"
+            ref={backupFileInputRef}
+            onChange={handleRestoreFileSelect}
+            accept=".json"
+            className="hidden"
+          />
+
           <button
-            onClick={handleDownloadPackage}
-            disabled={filteredQuestions.length === 0}
-            className="btn btn-outline border-secondary text-secondary hover:bg-secondary/5 shadow-sm flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed text-xs"
-            title="Download as text format (for re-import)"
+            onClick={handleExportBackup}
+            disabled={isLoading}
+            className="btn btn-outline border-emerald-600 text-emerald-600 hover:bg-emerald-50 shadow-sm text-xs font-bold flex items-center gap-1.5"
+            title="Cadangkan seluruh bank soal & paket ke file JSON di komputer lokal"
           >
-            <Upload size={20} className="rotate-180" /> TXT
+            <Download size={16} /> Cadangkan (.json)
           </button>
+
           <button
-            onClick={handleDownloadCSV}
-            disabled={filteredQuestions.length === 0}
-            className="btn btn-outline border-accent text-accent hover:bg-accent/5 shadow-sm flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed text-xs"
-            title="Download as CSV (for Excel/Sheets)"
+            onClick={() => backupFileInputRef.current?.click()}
+            disabled={isLoading}
+            className="btn btn-outline border-blue-600 text-blue-600 hover:bg-blue-50 shadow-sm text-xs font-bold flex items-center gap-1.5"
+            title="Pulihkan bank soal dari file cadangan JSON"
           >
-            <Upload size={20} className="rotate-180" /> CSV
+            <Upload size={16} /> Pulihkan (.json)
           </button>
+
           <button
-            onClick={() => {
-              setEditingId(null);
-              setFormData({
-                ...initialFormData,
-                package: filterPackage !== 'All' ? filterPackage : '',
-                subject: filterSubject !== 'All' ? filterSubject : ''
-              });
-              setShowForm(true);
-            }}
-            className="btn btn-primary shadow-lg flex-1 md:flex-none"
+            onClick={() => setActiveTab(prev => prev === 'bank' ? 'trash' : 'bank')}
+            className={`btn border-2 shadow-sm flex items-center gap-1.5 text-xs font-bold transition-all ${
+              activeTab === 'trash'
+                ? 'bg-amber-500 border-amber-600 text-white'
+                : 'btn-outline border-amber-500/50 text-amber-700 hover:bg-amber-50'
+            }`}
+            title="Buka Tong Sampah untuk melihat atau memulihkan soal yang terhapus"
           >
-            <Plus size={20} /> Add Question
+            <Trash2 size={16} />
+            <span>Tong Sampah</span>
+            {trashQuestions.length > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === 'trash' ? 'bg-white text-amber-600' : 'bg-amber-500 text-white'
+              }`}>
+                {trashQuestions.length}
+              </span>
+            )}
           </button>
+
+          {activeTab === 'bank' && (
+            <>
+              <button onClick={() => setShowBulkAdd(true)} className="btn btn-outline border-primary text-primary hover:bg-primary/5 shadow-sm text-xs font-bold flex items-center gap-1.5">
+                <Upload size={16} /> Bulk Add
+              </button>
+              <button
+                onClick={handleDownloadCSV}
+                disabled={filteredQuestions.length === 0}
+                className="btn btn-outline border-accent text-accent hover:bg-accent/5 shadow-sm text-xs font-bold"
+                title="Download as CSV"
+              >
+                CSV
+              </button>
+              <button
+                onClick={() => {
+                  setEditingId(null);
+                  setFormData({
+                    ...initialFormData,
+                    package: filterPackage !== 'All' ? filterPackage : '',
+                    subject: filterSubject !== 'All' ? filterSubject : ''
+                  });
+                  setShowForm(true);
+                }}
+                className="btn btn-primary shadow-lg text-xs font-bold flex items-center gap-1.5"
+              >
+                <Plus size={16} /> Add Question
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-col gap-6 mb-8">
+      {activeTab === 'trash' ? (
+        <div className="card bg-surface p-6 border-2 border-amber-300 shadow-xl animate-fade-in">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b border-border gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                <Trash2 size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-text-main flex items-center gap-2">
+                  Tong Sampah Soal ({trashQuestions.length})
+                </h2>
+                <p className="text-xs text-text-muted">
+                  Soal di sini aman dan tidak akan diakses oleh siswa saat ujian. Anda dapat memulihkannya kembali kapan saja.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+              <button
+                onClick={() => setActiveTab('bank')}
+                className="btn btn-outline border-neutral-300 text-xs font-bold flex items-center gap-1.5"
+              >
+                <ArrowLeft size={16} /> Kembali ke Bank Soal
+              </button>
+
+              {selectedTrashIds.length > 0 && (
+                <>
+                  <button
+                    onClick={handleRestoreBatch}
+                    disabled={isLoading}
+                    className="btn bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold flex items-center gap-1.5 shadow"
+                  >
+                    <RotateCcw size={16} /> Pulihkan ({selectedTrashIds.length})
+                  </button>
+                  <button
+                    onClick={handlePermanentDeleteBatch}
+                    disabled={isLoading}
+                    className="btn bg-rose-600 text-white hover:bg-rose-700 text-xs font-bold flex items-center gap-1.5 shadow"
+                  >
+                    <Trash2 size={16} /> Hapus Permanen ({selectedTrashIds.length})
+                  </button>
+                </>
+              )}
+
+              {trashQuestions.length > 0 && (
+                <button
+                  onClick={handleEmptyTrash}
+                  disabled={isLoading}
+                  className="btn btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold flex items-center gap-1.5"
+                >
+                  Kosongkan Tong Sampah
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto mt-6">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b-2 border-border text-[11px] font-black uppercase tracking-wider text-text-muted bg-background/50">
+                  <th className="p-3 w-10">
+                    <button
+                      onClick={() => {
+                        if (selectedTrashIds.length === trashQuestions.length && trashQuestions.length > 0) {
+                          setSelectedTrashIds([]);
+                        } else {
+                          setSelectedTrashIds(trashQuestions.map(q => q.id));
+                        }
+                      }}
+                      className="text-text-muted hover:text-primary"
+                    >
+                      {selectedTrashIds.length === trashQuestions.length && trashQuestions.length > 0 ? (
+                        <CheckSquare size={16} />
+                      ) : (
+                        <Square size={16} />
+                      )}
+                    </button>
+                  </th>
+                  <th className="p-3 w-12 text-center">No</th>
+                  <th className="p-3">Paket &amp; Mapel</th>
+                  <th className="p-3">Teks Soal</th>
+                  <th className="p-3 w-28">Tipe</th>
+                  <th className="p-3 w-40">Waktu Dihapus</th>
+                  <th className="p-3 w-36 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {trashQuestions.length > 0 ? (
+                  trashQuestions.map((q, idx) => {
+                    const isSelected = selectedTrashIds.includes(q.id);
+                    return (
+                      <tr key={q.id} className={`hover:bg-amber-50/40 transition-colors ${isSelected ? 'bg-amber-50/80' : ''}`}>
+                        <td className="p-3">
+                          <button
+                            onClick={() => {
+                              setSelectedTrashIds(prev =>
+                                prev.includes(q.id) ? prev.filter(id => id !== q.id) : [...prev, q.id]
+                              );
+                            }}
+                            className="text-text-muted hover:text-primary"
+                          >
+                            {isSelected ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} />}
+                          </button>
+                        </td>
+                        <td className="p-3 text-center text-xs font-mono font-bold text-text-muted">
+                          {idx + 1}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-black text-text-main">{q.package || 'Umum'}</span>
+                            <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold w-max">
+                              {q.subject}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <p className="font-bold text-sm text-text-main line-clamp-2" title={q.question}>
+                            {q.question}
+                          </p>
+                        </td>
+                        <td className="p-3">
+                          <span className="text-[10px] font-black bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded uppercase">
+                            {q.type === 'pilihan_ganda' ? 'PG' : q.type === 'pilihan_ganda_kompleks' ? 'Kompleks' : 'MCMA'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-xs text-text-muted font-medium">
+                          {q.deleted_at ? new Date(q.deleted_at).toLocaleString('id-ID') : '-'}
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => handleRestoreQuestion(q.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold flex items-center gap-1 border border-emerald-300 transition-colors"
+                              title="Pulihkan soal ke bank soal aktif"
+                            >
+                              <RotateCcw size={14} /> Pulihkan
+                            </button>
+                            <button
+                              onClick={() => handlePermanentDelete(q.id)}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-rose-600 hover:bg-rose-100 transition-colors"
+                              title="Hapus permanen dari database"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-12 text-center text-text-muted font-bold italic">
+                      Tong sampah kosong. Tidak ada soal yang sedang dihapus.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-6 mb-8">
         <div className="flex flex-col gap-2">
           <label className="text-xs font-black uppercase tracking-widest text-text-muted ml-1">Filter Subject</label>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -1531,7 +1882,7 @@ const QuestionBank = () => {
                         <button
                           onClick={() => handleDelete(q.id)}
                           className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:bg-danger/10 hover:text-danger transition-colors"
-                          title="Delete"
+                          title="Pindahkan ke Tong Sampah"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -1562,6 +1913,8 @@ const QuestionBank = () => {
           </div>
         )}
       </div>
+      </>
+      )}
       {/* Bulk Add Modal */}
       {showBulkAdd && (
         <div className="fixed inset-0 bg-text-main/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in text-text-main">
@@ -1601,6 +1954,95 @@ const QuestionBank = () => {
                 className="btn btn-primary flex-1 py-4 font-black uppercase tracking-widest text-xs"
               >
                 {isLoading ? 'Processing...' : `Add ${bulkText.split('\n').filter(l => l.trim()).length} Questions`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore Confirmation Modal */}
+      {showRestoreModal && (
+        <div className="fixed inset-0 bg-neutral-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in text-neutral-800">
+          <div className="bg-white p-6 rounded-2xl max-w-lg w-full shadow-2xl border-2 border-primary/20">
+            <div className="flex justify-between items-center mb-4 border-b pb-3">
+              <h3 className="text-xl font-black text-primary flex items-center gap-2">
+                <Upload size={22} /> Pulihkan Data Cadangan (.json)
+              </h3>
+              <button
+                onClick={() => {
+                  setShowRestoreModal(false);
+                  setPendingRestoreText('');
+                }}
+                className="text-neutral-400 hover:text-neutral-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-sm text-neutral-600 mb-4">
+              Pilih metode pemulihan data soal ke database:
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <label
+                className={`block p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                  backupRestoreMode === 'merge'
+                    ? 'border-primary bg-primary/5 shadow-sm'
+                    : 'border-neutral-200 hover:border-neutral-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-sm text-neutral-900 mb-1">
+                  <input
+                    type="radio"
+                    name="restoreMode"
+                    checked={backupRestoreMode === 'merge'}
+                    onChange={() => setBackupRestoreMode('merge')}
+                  />
+                  <span>Gabungkan / Merge (Sangat Disarankan)</span>
+                </div>
+                <p className="text-xs text-neutral-500 ml-5">
+                  Menambahkan soal baru dari cadangan ke dalam bank soal tanpa menghapus soal yang sudah ada.
+                </p>
+              </label>
+
+              <label
+                className={`block p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                  backupRestoreMode === 'replace'
+                    ? 'border-rose-500 bg-rose-50 shadow-sm'
+                    : 'border-neutral-200 hover:border-neutral-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-sm text-rose-700 mb-1">
+                  <input
+                    type="radio"
+                    name="restoreMode"
+                    checked={backupRestoreMode === 'replace'}
+                    onChange={() => setBackupRestoreMode('replace')}
+                  />
+                  <span>Gantikan Semua / Replace (Hati-hati)</span>
+                </div>
+                <p className="text-xs text-rose-600 ml-5">
+                  Menghapus seluruh soal yang ada saat ini dan menggantikannya sepenuhnya dengan isi file cadangan.
+                </p>
+              </label>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowRestoreModal(false);
+                  setPendingRestoreText('');
+                }}
+                className="btn btn-outline text-xs"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleExecuteRestore}
+                disabled={isLoading}
+                className="btn btn-primary text-xs font-bold flex items-center gap-1.5"
+              >
+                {isLoading ? 'Memproses...' : 'Mulai Pemulihan'}
               </button>
             </div>
           </div>

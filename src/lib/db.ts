@@ -72,6 +72,8 @@ export type Question = {
   package?: string; // Question package group
   materi_id?: string; // Relasi ke materi
   materi?: Materi; // Optional: relasi materi (join)
+  is_deleted?: boolean; // Soft delete flag
+  deleted_at?: string; // Soft delete timestamp
 };
 // --- Tokens Type ---
 export type ExamToken = {
@@ -155,7 +157,10 @@ const mapQuestionFromDb = (q: any): Question => {
     package: q.package || '',
     question: q.question,
     type: qType,
-    image: q.image || ''
+    image: q.image || '',
+    materi_id: q.materi_id || undefined,
+    is_deleted: q.is_deleted === true,
+    deleted_at: q.deleted_at || undefined
   };
 
   const optionsArray = q.options || [];
@@ -355,10 +360,78 @@ export const api = {
   },
 
   // --- Questions ---
-  getQuestions: async () => {
+  // --- Questions ---
+  getQuestions: async (includeDeleted: boolean = false) => {
     const { data, error } = await supabase.from('questions').select('*').order('created_at', { ascending: true });
     if (error) throw new Error(`Failed to fetch questions: ${error.message}`);
-    return (data || []).map(mapQuestionFromDb);
+    const mapped = (data || []).map(mapQuestionFromDb);
+    if (!includeDeleted) {
+      return mapped.filter(q => !q.is_deleted);
+    }
+    return mapped;
+  },
+  getTrashQuestions: async () => {
+    const { data, error } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
+    if (error) throw new Error(`Failed to fetch trash questions: ${error.message}`);
+    return (data || []).map(mapQuestionFromDb).filter(q => q.is_deleted === true);
+  },
+  softDeleteQuestion: async (id: string) => {
+    const payload = { is_deleted: true, deleted_at: new Date().toISOString() };
+    const { error } = await supabase.from('questions').update(payload).eq('id', id);
+    if (error) {
+      const message = error.message || '';
+      if (message.toLowerCase().includes("could not find the 'is_deleted' column") || message.toLowerCase().includes("is_deleted")) {
+        const { error: hardErr } = await supabase.from('questions').delete().eq('id', id);
+        if (hardErr) throw new Error(`Gagal menghapus soal: ${hardErr.message}`);
+        return;
+      }
+      throw new Error(`Gagal memindahkan soal ke tong sampah: ${message}`);
+    }
+  },
+  softDeleteQuestions: async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const payload = { is_deleted: true, deleted_at: new Date().toISOString() };
+    const { error } = await supabase.from('questions').update(payload).in('id', ids);
+    if (error) {
+      const message = error.message || '';
+      if (message.toLowerCase().includes("could not find the 'is_deleted' column") || message.toLowerCase().includes("is_deleted")) {
+        const { error: hardErr } = await supabase.from('questions').delete().in('id', ids);
+        if (hardErr) throw new Error(`Gagal menghapus soal: ${hardErr.message}`);
+        return;
+      }
+      throw new Error(`Gagal memindahkan soal ke tong sampah: ${message}`);
+    }
+  },
+  restoreQuestion: async (id: string) => {
+    const payload = { is_deleted: false, deleted_at: null };
+    const { error } = await supabase.from('questions').update(payload).eq('id', id);
+    if (error) throw new Error(`Gagal memulihkan soal: ${error.message}`);
+  },
+  restoreQuestions: async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const payload = { is_deleted: false, deleted_at: null };
+    const { error } = await supabase.from('questions').update(payload).in('id', ids);
+    if (error) throw new Error(`Gagal memulihkan soal: ${error.message}`);
+  },
+  permanentDeleteQuestion: async (id: string) => {
+    const { error } = await supabase.from('questions').delete().eq('id', id);
+    if (error) throw new Error(`Gagal menghapus soal secara permanen: ${error.message}`);
+  },
+  permanentDeleteQuestions: async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const { error } = await supabase.from('questions').delete().in('id', ids);
+    if (error) throw new Error(`Gagal menghapus soal secara permanen: ${error.message}`);
+  },
+  emptyTrash: async () => {
+    const { error } = await supabase.from('questions').delete().eq('is_deleted', true);
+    if (error) throw new Error(`Gagal mengosongkan tong sampah: ${error.message}`);
+  },
+  // Default delete alias to soft delete for safety
+  deleteQuestion: async (id: string) => {
+    return api.softDeleteQuestion(id);
+  },
+  deleteQuestions: async (ids: string[]) => {
+    return api.softDeleteQuestions(ids);
   },
   addQuestion: async (q: Question) => {
     // Basic mapping for insertion
@@ -367,9 +440,11 @@ export const api = {
       subject: q.subject,
       question: q.question,
       type: q.type === 'pilihan_ganda' ? 'MC' : q.type === 'pilihan_ganda_kompleks' ? 'MCMA' : 'TF',
-      image: q.image || ''
+      image: q.image || '',
+      is_deleted: q.is_deleted || false
     };
     if (q.package) payload.package = q.package;
+    if (q.deleted_at) payload.deleted_at = q.deleted_at;
 
     if (q.type === 'pilihan_ganda') {
       payload.options = [q.option_a, q.option_b, q.option_c, q.option_d];
@@ -386,9 +461,14 @@ export const api = {
     let result = await supabase.from('questions').insert([payload]);
     if (result.error) {
       const message = result.error.message || '';
-      if (message.toLowerCase().includes("could not find the 'package' column")) {
-        delete payload.package;
-        result = await supabase.from('questions').insert([payload]);
+      if (message.toLowerCase().includes("could not find the 'package' column") || message.toLowerCase().includes("is_deleted")) {
+        const cleanPayload = { ...payload };
+        if (message.toLowerCase().includes("package")) delete cleanPayload.package;
+        if (message.toLowerCase().includes("is_deleted")) {
+          delete cleanPayload.is_deleted;
+          delete cleanPayload.deleted_at;
+        }
+        result = await supabase.from('questions').insert([cleanPayload]);
         if (result.error) throw new Error(`Failed to add question (fallback): ${result.error.message}`);
         return;
       }
@@ -400,9 +480,11 @@ export const api = {
       subject: q.subject,
       question: q.question,
       type: q.type === 'pilihan_ganda' ? 'MC' : q.type === 'pilihan_ganda_kompleks' ? 'MCMA' : 'TF',
-      image: q.image || ''
+      image: q.image || '',
+      is_deleted: q.is_deleted || false
     };
     if (q.package) payload.package = q.package;
+    if (q.deleted_at) payload.deleted_at = q.deleted_at;
 
     if (q.type === 'pilihan_ganda') {
       payload.options = [q.option_a, q.option_b, q.option_c, q.option_d];
@@ -419,22 +501,19 @@ export const api = {
     const { error } = await supabase.from('questions').update(payload).eq('id', q.id);
     if (error) {
       const message = error.message || '';
-      if (message.toLowerCase().includes("could not find the 'package' column")) {
-        delete payload.package;
-        const { error: fallbackError } = await supabase.from('questions').update(payload).eq('id', q.id);
+      if (message.toLowerCase().includes("could not find the 'package' column") || message.toLowerCase().includes("is_deleted")) {
+        const cleanPayload = { ...payload };
+        if (message.toLowerCase().includes("package")) delete cleanPayload.package;
+        if (message.toLowerCase().includes("is_deleted")) {
+          delete cleanPayload.is_deleted;
+          delete cleanPayload.deleted_at;
+        }
+        const { error: fallbackError } = await supabase.from('questions').update(cleanPayload).eq('id', q.id);
         if (fallbackError) throw new Error(`Failed to update question (fallback): ${fallbackError.message}`);
         return;
       }
       throw new Error(`Failed to update question: ${message}`);
     }
-  },
-  deleteQuestion: async (id: string) => {
-    const { error } = await supabase.from('questions').delete().eq('id', id);
-    if (error) throw new Error(`Failed to delete question: ${error.message}`);
-  },
-  deleteQuestions: async (ids: string[]) => {
-    const { error } = await supabase.from('questions').delete().in('id', ids);
-    if (error) throw new Error(`Failed to delete questions: ${error.message}`);
   },
   setQuestions: async (qs: Question[]) => {
     const payloads = qs.map(q => {
@@ -443,9 +522,11 @@ export const api = {
         subject: q.subject,
         question: q.question,
         type: q.type === 'pilihan_ganda' ? 'MC' : q.type === 'pilihan_ganda_kompleks' ? 'MCMA' : 'TF',
-        image: q.image || ''
+        image: q.image || '',
+        is_deleted: q.is_deleted || false
       };
       if (q.package) payload.package = q.package;
+      if (q.deleted_at) payload.deleted_at = q.deleted_at;
       if (q.type === 'pilihan_ganda') {
         payload.options = [q.option_a, q.option_b, q.option_c, q.option_d];
         payload.answer = q.correct_answer;
@@ -462,10 +543,14 @@ export const api = {
     let upsertResult = await supabase.from('questions').upsert(payloads);
     if (upsertResult.error) {
       const message = upsertResult.error.message || '';
-      if (message.toLowerCase().includes("could not find the 'package' column")) {
+      if (message.toLowerCase().includes("could not find the 'package' column") || message.toLowerCase().includes("is_deleted")) {
         const cleanPayloads = payloads.map(p => {
           const cp = { ...p };
-          delete cp.package;
+          if (message.toLowerCase().includes("package")) delete cp.package;
+          if (message.toLowerCase().includes("is_deleted")) {
+            delete cp.is_deleted;
+            delete cp.deleted_at;
+          }
           return cp;
         });
         upsertResult = await supabase.from('questions').upsert(cleanPayloads);
@@ -474,6 +559,116 @@ export const api = {
       }
       throw new Error(`Failed to save questions: ${message}`);
     }
+  },
+  exportQuestionsBackup: async (): Promise<string> => {
+    const { data: qData, error: qErr } = await supabase.from('questions').select('*').order('created_at', { ascending: true });
+    if (qErr) throw qErr;
+    const questions = (qData || []).map(mapQuestionFromDb);
+    const activeQuestions = questions.filter(q => !q.is_deleted);
+
+    const { data: pakets } = await supabase.from('paket_soal').select('*');
+    const { data: paketRel } = await supabase.from('paket_soal_questions').select('*');
+    const { data: materiList } = await supabase.from('materi').select('*');
+
+    const backupObj = {
+      app: 'TKA_CBT',
+      schema_version: '2.0',
+      exported_at: new Date().toISOString(),
+      total_questions: activeQuestions.length,
+      questions: activeQuestions,
+      pakets: pakets || [],
+      paket_soal_questions: paketRel || [],
+      materi: materiList || []
+    };
+    return JSON.stringify(backupObj, null, 2);
+  },
+  importQuestionsBackup: async (jsonContent: string, mode: 'merge' | 'replace' = 'merge'): Promise<{ imported: number; pakets: number }> => {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonContent);
+    } catch {
+      throw new Error('File tidak valid. Pastikan file berformat JSON yang benar.');
+    }
+
+    let rawQuestions: any[] = [];
+    let rawPakets: any[] = [];
+    let rawMateri: any[] = [];
+
+    if (Array.isArray(parsed)) {
+      rawQuestions = parsed;
+    } else if (parsed && typeof parsed === 'object') {
+      rawQuestions = parsed.questions || [];
+      rawPakets = parsed.pakets || [];
+      rawMateri = parsed.materi || [];
+    } else {
+      throw new Error('Format data backup tidak sesuai.');
+    }
+
+    if (rawQuestions.length === 0) {
+      throw new Error('Tidak ada data soal yang ditemukan dalam file ini.');
+    }
+
+    if (mode === 'replace') {
+      await supabase.from('questions').delete().neq('id', '___KEEP_EMPTY___');
+    }
+
+    // Restore materi if present
+    if (rawMateri.length > 0) {
+      try {
+        await supabase.from('materi').upsert(rawMateri);
+      } catch (mErr) {
+        console.warn('Materi restore note:', mErr);
+      }
+    }
+
+    // Restore pakets if present
+    if (rawPakets.length > 0) {
+      try {
+        await supabase.from('paket_soal').upsert(rawPakets);
+      } catch (pErr) {
+        console.warn('Paket restore note:', pErr);
+      }
+    }
+
+    const formatted: Question[] = rawQuestions.map((item, idx) => {
+      const qType = item.type || 'pilihan_ganda';
+      const q: Question = {
+        id: item.id || `Q-IMP-${Date.now().toString(36)}-${idx}`,
+        subject: item.subject || 'Umum',
+        package: item.package || '',
+        question: item.question || '',
+        type: qType,
+        image: item.image || '',
+        materi_id: item.materi_id || undefined,
+        is_deleted: false
+      };
+
+      if (qType === 'pilihan_ganda') {
+        q.option_a = item.option_a || { text: '' };
+        q.option_b = item.option_b || { text: '' };
+        q.option_c = item.option_c || { text: '' };
+        q.option_d = item.option_d || { text: '' };
+        q.correct_answer = item.correct_answer || 'A';
+      } else {
+        q.statements = item.statements || [
+          { text: '', isCorrect: false, correctAnswer: 'Sesuai' },
+          { text: '', isCorrect: false, correctAnswer: 'Sesuai' },
+          { text: '', isCorrect: false, correctAnswer: 'Sesuai' }
+        ];
+      }
+      return q;
+    });
+
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < formatted.length; i += CHUNK_SIZE) {
+      const chunk = formatted.slice(i, i + CHUNK_SIZE);
+      await api.setQuestions(chunk);
+    }
+
+    return {
+      imported: formatted.length,
+      pakets: rawPakets.length
+    };
   },
 
   // --- Results ---

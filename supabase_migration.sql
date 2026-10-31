@@ -61,8 +61,16 @@ CREATE TABLE IF NOT EXISTS public.questions (
     image TEXT,
     options JSONB,
     answer TEXT,
+    materi_id TEXT,
+    is_deleted BOOLEAN DEFAULT false,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Migrasi tambahan untuk tabel questions jika sudah ada:
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS materi_id TEXT;
 
 -- ==========================================
 -- (Optional) If you want to allow anonymous access 
@@ -74,3 +82,4 @@ ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tokens DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.results DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_states DISABLE ROW LEVEL SECURITY;
+

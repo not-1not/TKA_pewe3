@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS public.questions (
     options JSONB,
     answer TEXT,
     materi_id TEXT,
+    is_deleted BOOLEAN DEFAULT false,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

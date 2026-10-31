@@ -1,0 +1,86 @@
+{
+  "app": "TKA_CBT",
+  "schema_version": "2.0",
+  "exported_at": "2026-10-31T00:00:00.000Z",
+  "total_questions": 5,
+  "questions": [
+    {
+      "id": "Q-MASTER-001",
+      "package": "Paket-A",
+      "subject": "Matematika",
+      "question": "Hasil dari 15 × 8 + 120 ÷ 4 adalah...",
+      "type": "pilihan_ganda",
+      "option_a": { "text": "140", "image": "" },
+      "option_b": { "text": "150", "image": "" },
+      "option_c": { "text": "160", "image": "" },
+      "option_d": { "text": "170", "image": "" },
+      "correct_answer": "B",
+      "image": "",
+      "is_deleted": false
+    },
+    {
+      "id": "Q-MASTER-002",
+      "package": "Paket-A",
+      "subject": "Matematika",
+      "question": "Sebuah persegi panjang memiliki panjang 12 cm dan lebar 7 cm. Berapakah luas dan keliling bangun tersebut?",
+      "type": "pilihan_ganda",
+      "option_a": { "text": "Luas 84 cm², Keliling 38 cm", "image": "" },
+      "option_b": { "text": "Luas 84 cm², Keliling 40 cm", "image": "" },
+      "option_c": { "text": "Luas 72 cm², Keliling 38 cm", "image": "" },
+      "option_d": { "text": "Luas 90 cm², Keliling 42 cm", "image": "" },
+      "correct_answer": "A",
+      "image": "",
+      "is_deleted": false
+    },
+    {
+      "id": "Q-MASTER-003",
+      "package": "Paket-A",
+      "subject": "Bahasa Indonesia",
+      "question": "Manakah pernyataan berikut yang merupakan ciri-ciri teks eksposisi? (Pilih 2 jawaban yang benar)",
+      "type": "pilihan_ganda_kompleks",
+      "statements": [
+        { "text": "Menyajikan fakta untuk memperjelas informasi", "isCorrect": true, "correctAnswer": "Sesuai" },
+        { "text": "Menggunakan bahasa yang bersifat emotif dan melebih-lebihkan", "isCorrect": false, "correctAnswer": "Tidak Sesuai" },
+        { "text": "Bersifat objektif dan informatif", "isCorrect": true, "correctAnswer": "Sesuai" }
+      ],
+      "image": "",
+      "is_deleted": false
+    },
+    {
+      "id": "Q-MASTER-004",
+      "package": "Paket-A",
+      "subject": "IPA",
+      "question": "Tentukan kesesuaian dari masing-masing pernyataan terkait proses fotosintesis berikut!",
+      "type": "multiple_choice_multiple_answer",
+      "statements": [
+        { "text": "Fotosintesis menghasilkan gas oksigen (O2) yang dibutuhkan makhluk hidup", "isCorrect": true, "correctAnswer": "Sesuai" },
+        { "text": "Klorofil berperan menyerap energi cahaya matahari", "isCorrect": true, "correctAnswer": "Sesuai" },
+        { "text": "Fotosintesis dapat berlangsung secara optimal di tempat yang gelap tanpa cahaya", "isCorrect": false, "correctAnswer": "Tidak Sesuai" }
+      ],
+      "image": "",
+      "is_deleted": false
+    },
+    {
+      "id": "Q-MASTER-005",
+      "package": "Paket-A",
+      "subject": "Bahasa Indonesia",
+      "question": "Ide pokok dalam sebuah paragraf biasanya terdapat pada...",
+      "type": "pilihan_ganda",
+      "option_a": { "text": "Kalimat penjelas", "image": "" },
+      "option_b": { "text": "Kalimat utama", "image": "" },
+      "option_c": { "text": "Kalimat penutup saja", "image": "" },
+      "option_d": { "text": "Kalimat tanya", "image": "" },
+      "correct_answer": "B",
+      "image": "",
+      "is_deleted": false
+    }
+  ],
+  "pakets": [
+    {
+      "id": "PAKET-A",
+      "name": "Paket-A",
+      "subject": "Umum"
+    }
+  ],
+  "materi": []
+}
